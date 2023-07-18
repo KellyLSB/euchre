@@ -70,7 +70,13 @@ class Game {
 
     // Trick currently in play
     var trick: Int = 0
-    var trickCards: Trick? = null
+    var trickCards: Trick = Trick()
+
+    // Callback Register
+    var onShouldPickItUp: ((Hand, Stack) -> Boolean)? = null,
+    var onSelectTrump: ((Hand) -> String)? = null,
+    var onShouldGoAlone: ((Hand) -> Boolean)? = null,
+    var onPlayCard: ((Hand, Trick) -> Unit)? = null,
 
     // Shuffle the cards
     fun shuffle() { deck.shuffle() }
@@ -110,12 +116,7 @@ class Game {
         }
     }
 
-    fun play(
-        onShouldPickItUp: ((Hand, Stack) -> Boolean)? = null,
-        onSelectTrump: ((Hand) -> String)? = null,
-        onShouldGoAlone: ((Hand) -> Boolean)? = null,
-        onPlay: ((Hand, Trick) -> Unit)? = null,
-    ) {
+    fun play() {
         // Select trump by dealer/kitty exchange
         while(turn < 4) {
             if(hands[whoseTurn()].shouldPickItUp(kitty)) {
@@ -177,7 +178,7 @@ class Game {
             }
             turn = 0
             
-            hands[trick.winningHand()].tricks.add(trickCards)
+            hands[trickCards.winningHand()].tricks.add(trickCards)
             trick++
         }
     }

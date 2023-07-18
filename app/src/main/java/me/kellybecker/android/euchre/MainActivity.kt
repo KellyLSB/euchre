@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,9 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.fontResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import me.kellybecker.android.euchre.logic.Game
@@ -54,6 +51,8 @@ fun MainActivityContent() {
             Log.d("CARDS", gameInstance.hands.toString())
 
             CardTable(0, gameInstance)
+            gameInstance.onShouldPickUp = {
+            }
         }
     }
 }
@@ -87,13 +86,21 @@ fun CardTable(player: Int, gameInstance: Game) {
                 }
             }
             Column(modifier = Modifier.height(45.dp).wrapContentSize(unbounded = true)) {
-                gameInstance.kitty.forEach {
-                    GameCard(it.suit, it.card)
+                if(gameInstance.trump() == "") {
+                    Text("Kitty")
+                    GameCard(
+                        gameInstance.kitty[0].suit,
+                        gameInstance.kitty[0].card,
+                    )
+                } else {
+                    Text("Trump")
+                    GameCard(gameInstance.trump(), "")
                 }
             }
             Column(modifier = Modifier.height(45.dp).wrapContentSize(unbounded = true)) {
-                gameInstance.kitty.forEach {
-                    GameCard(it.suit, it.card)
+                Text("Trick")
+                gameInstance.trickCards.forEach {
+                    GameCard(it.value.suit, it.value.card)
                 }
             }
             // Player 3
