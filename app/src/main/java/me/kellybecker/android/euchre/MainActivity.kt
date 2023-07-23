@@ -11,11 +11,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -23,69 +31,126 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import me.kellybecker.android.euchre.logic.Game
 import me.kellybecker.android.euchre.ui.theme.EuchreTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MainActivityContent() }
+        val gameInstance = Game()
+
+        // Assuming local hosted game
+        gameInstance.shuffle()
+        gameInstance.cut(/* onMyCut = { /*  */ } */)
+        gameInstance.deal()
+
+        setContent { MainActivityContent(gameInstance) }
     }
 }
 
 @Composable
-fun MainActivityContent() {
+fun MainActivityContent(gameInstance: Game) {
     EuchreTheme {
         // A surface container using the 'background' color from the theme
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            val gameInstance = Game()
+            val scope = rememberCoroutineScope()
 
-            // Assuming local hosted game
-            gameInstance.shuffle()
-            gameInstance.cut(/* onMyCut = { /*  */ } */)
-            gameInstance.deal()
+            // User Input Dialogs
+            var showPickItUp by remember { mutableStateOf(false) }
+            val flowPickItUp = remember { MutableSharedFlow<Boolean>() }
 
-            Log.d("CARDS", gameInstance.hands.toString())
-
-            CardTable(0, gameInstance)
-            gameInstance.onShouldPickUp = {
+            LaunchedEffect(Unit) {
+                showPickItUp = true
+                val pickItUp = flowPickItUp.first()
+                gameInstance.phasePickItUp(pickItUp)
             }
+
+            Log.d("EUCHRE", gameInstance.hands.toString())
+
+            CardTable(
+                player = 1,
+                gameInstance = gameInstance,
+                showPickItUp = showPickItUp,
+                onPickItUp = { scope.launch { flowPickItUp.emit(true);  showPickItUp = false } },
+                onPassItUp = { scope.launch { flowPickItUp.emit(false); showPickItUp = false } }
+            )
+            //gameInstance.play()
+            //gameInstance.onShouldPickUp = {
+            //}
         }
     }
 }
 
 @Composable
-fun CardTable(player: Int, gameInstance: Game) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        // Player 2
-        Row(modifier = Modifier.rotate(180.0F), horizontalArrangement = Arrangement.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Greeting("Player ${player + 2 % 4}, Cards: ${gameInstance.hands[player + 2 % 4].size}")
-                Row {
-                    gameInstance.hands[player + 2 % 4].forEach {
-                        GameCard(it.suit, it.card)
-                    }
+fun CardTable(
+    player: Int,
+    gameInstance: Game,
+    showPickItUp: Boolean,
+    onPickItUp: () -> Unit,
+    onPassItUp: () -> Unit
+) {
+    gameInstance.hands[(player + 0) % 4].isAI = false
+
+    if(showPickItUp) {
+        AlertDialog(
+            onDismissRequest = {},
+            dismissButton = {
+                Button(onClick = onPassItUp) {
+                    Text("Pass")
+                }
+            },
+            confirmButton = {
+                Button(onClick = onPickItUp) {
+                    Text("Pick It Up")
+                }
+            },
+            title = {
+                Column {
+                    Text("Should Pick it Up?")
+                    GameCard(
+                        gameInstance.kitty[0].suit,
+                        gameInstance.kitty[0].card,
+                    )
                 }
             }
-        }
+        )
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        // Player 2
+        CardHand(
+            playerHand = (player + 2) % 4,
+            gameInstance = gameInstance,
+            modifier = Modifier.rotate(180.0F),
+            openHand = if(gameInstance.openHand) {
+                true
+            } else {
+                player == (player + 2) % 4
+            }
+        )
         Row(modifier = Modifier
             .height(235.dp)
             .wrapContentSize(unbounded = true)) {
             // Player 1
-            Row(modifier = Modifier.rotate(90.0F)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Greeting("Player ${player + 1 % 4}, Cards: ${gameInstance.hands[player + 1 % 4].size}")
-                    Row {
-                        gameInstance.hands[player + 1 % 4].forEach {
-                            GameCard(it.suit, it.card)
-                        }
-                    }
+            CardHand(
+                playerHand = (player + 1) % 4,
+                gameInstance = gameInstance,
+                modifier = Modifier.rotate(90.0F),
+                openHand = if(gameInstance.openHand) {
+                    true
+                } else {
+                    player == (player + 1) % 4
                 }
-            }
-            Column(modifier = Modifier.height(45.dp).wrapContentSize(unbounded = true)) {
+            )
+            Column(modifier = Modifier
+                .height(45.dp)
+                .wrapContentSize(unbounded = true)) {
                 if(gameInstance.trump() == "") {
                     Text("Kitty")
                     GameCard(
@@ -97,32 +162,53 @@ fun CardTable(player: Int, gameInstance: Game) {
                     GameCard(gameInstance.trump(), "")
                 }
             }
-            Column(modifier = Modifier.height(45.dp).wrapContentSize(unbounded = true)) {
+            Column(modifier = Modifier
+                .height(45.dp)
+                .wrapContentSize(unbounded = true)) {
                 Text("Trick")
                 gameInstance.trickCards.forEach {
                     GameCard(it.value.suit, it.value.card)
                 }
             }
             // Player 3
-            Row(modifier = Modifier.rotate(-90.0F)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Greeting("Player ${player + 3 % 4}, Cards: ${gameInstance.hands[player + 3 % 4].size}")
-                    Row {
-                        gameInstance.hands[player + 3 % 4].forEach {
-                            GameCard(it.suit, it.card)
-                        }
-                    }
+            CardHand(
+                playerHand = (player + 3) % 4,
+                gameInstance = gameInstance,
+                modifier = Modifier.rotate(-90.0F),
+                openHand = if(gameInstance.openHand) {
+                    true
+                } else {
+                    player == (player + 3) % 4
                 }
-            }
+            )
         }
         // Player 0
-        Row(horizontalArrangement = Arrangement.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Greeting("Player ${player + 0 % 4}, Cards: ${gameInstance.hands[player + 0 % 4].size}")
-                Row {
-                    gameInstance.hands[player + 0 % 4].forEach {
-                        GameCard(it.suit, it.card)
-                    }
+        CardHand(
+            playerHand = (player + 0) % 4,
+            gameInstance = gameInstance,
+            openHand = if(gameInstance.openHand) {
+                true
+            } else {
+                player == (player + 0) % 4
+            }
+        )
+    }
+}
+
+@Composable
+fun CardHand(
+    playerHand: Int,
+    gameInstance: Game,
+    modifier: Modifier = Modifier,
+    openHand: Boolean = true
+) {
+    Log.d("EUCHRE", "Player: $playerHand")
+    Row(modifier = modifier) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Greeting("Player ${playerHand}, Cards: ${gameInstance.hands[playerHand].size}")
+            Row(horizontalArrangement = Arrangement.SpaceEvenly) {
+                gameInstance.hands[playerHand].forEach {
+                    GameCard(it.suit, it.card, openHand)
                 }
             }
         }
@@ -138,7 +224,7 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun GameCard(suit: String, face: String) {
+fun GameCard(suit: String, face: String, openHand: Boolean = true) {
     val red = listOf("♥", "♦")
 
     val suitColor = if(suit in red) {
@@ -149,8 +235,12 @@ fun GameCard(suit: String, face: String) {
 
     Card(modifier = Modifier.padding(2.5.dp)) {
         Row(modifier = Modifier.padding(1.7.dp, end = 3.2563.dp)) {
-            Text(suit, color = suitColor, fontWeight = FontWeight.Black)
-            Text(face)
+            if(openHand) {
+                Text(suit, color = suitColor, fontWeight = FontWeight.Black)
+                Text(face)
+            } else {
+                Text("EU", fontWeight = FontWeight.ExtraBold)
+            }
         }
     }
 }
@@ -158,5 +248,38 @@ fun GameCard(suit: String, face: String) {
 @Preview(showBackground = true)
 @Composable
 fun MainActivityPreview() {
-    MainActivityContent()
+    val gameInstance = Game()
+
+    // Assuming local hosted game
+    gameInstance.shuffle()
+    gameInstance.cut(/* onMyCut = { /*  */ } */)
+    gameInstance.deal()
+
+    MainActivityContent(gameInstance)
 }
+
+// Sample coroutine code from Jacob
+//@Composable
+//fun GameScreen() {
+//    val gameState = GameState()
+//    val scope = rememberCoroutineScope()
+//    var showUserInputDialog by remember { mutableStateOf(false) }
+//    val userChoice = remember { MutableSharedFlow<GameChoice>() }
+//
+//    LaunchedEffect(Unit) {
+//        while (true) {
+//            gameState.advance()
+//            if (gameState.isUserTurn()) {
+//                showUserInputDialog = true
+//                gameState.setUserChoice(userChoice.first())
+//            } else {
+//                // AI chooses
+//                delay(500)
+//            }
+//        }
+//
+//        if (showUserInputDialog) {
+//            Button(onClick = { scope.launch { userChoice.emit(/*what they chose*/) } })
+//        }
+//    }
+//}

@@ -1,5 +1,10 @@
 package me.kellybecker.android.euchre.logic
 
+import android.util.Log
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
+
 var trump: String = ""
 
 /**
@@ -63,6 +68,9 @@ class Game {
     )
     val kitty: Stack = Stack()
 
+    // OpenHand
+    var openHand: Boolean = true
+
     // Track the turn and dealer
     var turn: Int = 0
     var dealer: Int = 0
@@ -72,11 +80,11 @@ class Game {
     var trick: Int = 0
     var trickCards: Trick = Trick()
 
-    // Callback Register
-    var onShouldPickItUp: ((Hand, Stack) -> Boolean)? = null,
-    var onSelectTrump: ((Hand) -> String)? = null,
-    var onShouldGoAlone: ((Hand) -> Boolean)? = null,
-    var onPlayCard: ((Hand, Trick) -> Unit)? = null,
+//    // Callback Register
+//    var onShouldPickItUp: ((Hand, Stack) -> Boolean)? = {},
+//    var onSelectTrump: ((Hand) -> String)? = {},
+//    var onShouldGoAlone: ((Hand) -> Boolean)? = {},
+//    var onPlayCard: ((Hand, Trick) -> Unit)? = {},
 
     // Shuffle the cards
     fun shuffle() { deck.shuffle() }
@@ -116,22 +124,32 @@ class Game {
         }
     }
 
-    fun play() {
+    fun phasePickItUp(checkUser: Boolean) {
         // Select trump by dealer/kitty exchange
         while(turn < 4) {
-            if(hands[whoseTurn()].shouldPickItUp(kitty)) {
+            if(
+                if(hands[whoseTurn()].isAI) {
+                    val check = hands[whoseTurn()].aiShouldPickItUp(kitty)
+                    Log.d("EUCHRE", "AI: Should pick it up $check")
+                    check
+                } else {
+                    Log.d("EUCHRE", "USER: Should pick it up: $checkUser")
+                    checkUser
+                }
+            ) {
                 if(kitty[0].suit != "T") {
-                    trump = kitty[0].suit
+                    trump = "${kitty[0].suit}"
                     println("${whoseTurn()} told the dealer to pick up Kitty card\nTrump Selected by Kitty: ${trump}")
                 }
                 hands[dealer].pickItUp(kitty)
                 break
             }
-
             turn++
         }
         turn = 0
-        
+    }
+
+    fun play() {
         // Select trump by best hand
         while(trump == "" && turn < 4) {
             trump = hands[whoseTurn()].selectTrump()
@@ -344,6 +362,9 @@ open class Stack : MutableList<Card> by mutableListOf() {
 }
 
 class Hand(hand: Int) : Stack() {
+    var isAI: Boolean = true
+    var shouldPickItUpResp: Int = 0
+    var shouldPickItUpTurn: Boolean = false
     val tricks: MutableList<Trick> = mutableListOf()
     val hand: Int = hand
 
@@ -354,8 +375,7 @@ class Hand(hand: Int) : Stack() {
         add(kitty.removeFirst())
     }
 
-    fun shouldPickItUp(kitty: Stack): Boolean {
-        //@TODO query user input
+    fun aiShouldPickItUp(kitty: Stack): Boolean {
         val avgScore = calculateIdealTrump()
         return avgScore.size > 0 && avgScore[0].first == kitty[0].suit
     }
