@@ -132,7 +132,7 @@ class Game {
                     val check = hands[whoseTurn()].aiShouldPickItUp(kitty)
                     Log.d("EUCHRE", "AI: Should pick it up $check")
                     check
-]                } else {
+                } else {
                     Log.d("EUCHRE", "USER: Should pick it up: $checkUser")
                     checkUser
                 }

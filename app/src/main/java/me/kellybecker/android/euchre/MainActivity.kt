@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -276,7 +277,7 @@ fun GameCard(
         Color.Black
     }
 
-    Card(modifier = Modifier.padding(2.5.dp), onClick = onClick) {
+    Card(modifier = Modifier.padding(2.5.dp).clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(1.7.dp, end = 3.2563.dp)) {
             if(openHand) {
                 Text(suit, color = suitColor, fontWeight = FontWeight.Black)
