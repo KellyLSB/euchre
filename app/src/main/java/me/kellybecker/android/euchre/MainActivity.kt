@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,13 +63,21 @@ fun MainActivityContent(gameInstance: Game) {
             val scope = rememberCoroutineScope()
 
             // User Input Dialogs
-            var showPickItUp by remember { mutableStateOf(false) }
-            val flowPickItUp = remember { MutableSharedFlow<Boolean>() }
+            var showPickItUp by remember { mutableStateOf(false)   }
+            val flowPickItUp =  remember { MutableSharedFlow<Boolean>() }
+            var showSelectTrump by remember { mutableStateOf(false)  }
+            val flowSelectTrump =  remember { MutableSharedFlow<String>() }
 
             LaunchedEffect(Unit) {
                 showPickItUp = true
                 val pickItUp = flowPickItUp.first()
                 gameInstance.phasePickItUp(pickItUp)
+
+                if(gameInstance.trump() == "") {
+                    showSelectTrump = true
+                    val selectTrump = flowSelectTrump.first()
+                    gameInstance.phaseSelectTrump(selectTrump)
+                }
             }
 
             Log.d("EUCHRE", gameInstance.hands.toString())
@@ -78,11 +87,12 @@ fun MainActivityContent(gameInstance: Game) {
                 gameInstance = gameInstance,
                 showPickItUp = showPickItUp,
                 onPickItUp = { scope.launch { flowPickItUp.emit(true);  showPickItUp = false } },
-                onPassItUp = { scope.launch { flowPickItUp.emit(false); showPickItUp = false } }
+                onPassItUp = { scope.launch { flowPickItUp.emit(false); showPickItUp = false } },
+                showSelectTrump = showSelectTrump,
+                onSelectTrump = { selectTrump ->
+                    scope.launch { flowSelectTrump.emit(selectTrump); showSelectTrump = false }
+                }
             )
-            //gameInstance.play()
-            //gameInstance.onShouldPickUp = {
-            //}
         }
     }
 }
@@ -93,7 +103,9 @@ fun CardTable(
     gameInstance: Game,
     showPickItUp: Boolean,
     onPickItUp: () -> Unit,
-    onPassItUp: () -> Unit
+    onPassItUp: () -> Unit,
+    showSelectTrump: Boolean,
+    onSelectTrump: (String) -> Unit,
 ) {
     gameInstance.hands[(player + 0) % 4].isAI = false
 
@@ -117,6 +129,31 @@ fun CardTable(
                         gameInstance.kitty[0].suit,
                         gameInstance.kitty[0].card,
                     )
+                }
+            }
+        )
+    }
+
+    if(showSelectTrump) {
+        AlertDialog(
+            onDismissRequest = {},
+            dismissButton = {
+                Button(onClick = { onSelectTrump("") }) {
+                    Text("Pass")
+                }
+            },
+            confirmButton = {},
+            title = {
+                Column {
+                    Text("Select Trump")
+                    Row {
+                        GameCard("♠", onClick = { onSelectTrump("♠") })
+                        GameCard("♥", onClick = { onSelectTrump("♥") })
+                    }
+                    Row {
+                        GameCard("♦", onClick = { onSelectTrump("♦") })
+                        GameCard("♣", onClick = { onSelectTrump("♣") })
+                    }
                 }
             }
         )
@@ -223,8 +260,14 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GameCard(suit: String, face: String, openHand: Boolean = true) {
+fun GameCard(
+    suit: String,
+    face: String = "",
+    openHand: Boolean = true,
+    onClick: () -> Unit = {}
+) {
     val red = listOf("♥", "♦")
 
     val suitColor = if(suit in red) {
@@ -233,7 +276,7 @@ fun GameCard(suit: String, face: String, openHand: Boolean = true) {
         Color.Black
     }
 
-    Card(modifier = Modifier.padding(2.5.dp)) {
+    Card(modifier = Modifier.padding(2.5.dp), onClick = onClick) {
         Row(modifier = Modifier.padding(1.7.dp, end = 3.2563.dp)) {
             if(openHand) {
                 Text(suit, color = suitColor, fontWeight = FontWeight.Black)
@@ -243,6 +286,12 @@ fun GameCard(suit: String, face: String, openHand: Boolean = true) {
             }
         }
     }
+}
+
+@Preview
+@Composable
+fun GameCardPreview() {
+    GameCard("♥", "A")
 }
 
 @Preview(showBackground = true)

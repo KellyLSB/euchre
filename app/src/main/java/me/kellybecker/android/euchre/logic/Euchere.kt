@@ -132,7 +132,7 @@ class Game {
                     val check = hands[whoseTurn()].aiShouldPickItUp(kitty)
                     Log.d("EUCHRE", "AI: Should pick it up $check")
                     check
-                } else {
+]                } else {
                     Log.d("EUCHRE", "USER: Should pick it up: $checkUser")
                     checkUser
                 }
@@ -149,23 +149,30 @@ class Game {
         turn = 0
     }
 
-    fun play() {
-        // Select trump by best hand
+    fun phaseSelectTrump(checkUser: String) {
         while(trump == "" && turn < 4) {
-            trump = hands[whoseTurn()].selectTrump()
+            if(hands[whoseTurn()].isAI) {
+                trump = "${hands[whoseTurn()].selectTrump()}"
+            } else {
+                trump = "${checkUser}"
+            }
+
             if(turn == 3 && trump == "") {
-                return // Skip hand
+                Log.d("EUCHRE","Trump wasn't selected")
+                break
             }
 
             if(trump != "") {
-                println("Trump Selected by ${whoseTurn()}: ${trump}")
+                Log.d("EUCHRE","Trump Selected by ${whoseTurn()}: ${trump}")
                 break
             }
-            
+
             turn++
         }
         turn = 0
+    }
 
+    fun play() {
         // Go alone for a round
         while(turn < 4) {
             if(hands[whoseTurn()].shouldGoAlone()) {
