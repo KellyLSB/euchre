@@ -1,10 +1,7 @@
 package me.kellybecker.android.euchre.logic
 
 import android.util.Log
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 
 var trump: String = ""
 
@@ -22,10 +19,10 @@ fun isBowerSuit(suit: String): Boolean {
  * Check if suit qualifies as a bower
  */
 fun isBower(suit: String): String {
-    if(isBowerSuit(suit)) {
-        return if(suit == trump) { "J1" } else { "J2" }
+    return if(isBowerSuit(suit)) {
+        if(suit == trump) { "J1" } else { "J2" }
     } else {
-        return "J"
+        "J"
     }
 }
 
@@ -125,7 +122,7 @@ class Game {
         }
     }
 
-    fun phasePickItUp(checkUser: Boolean) {
+    suspend fun phasePickItUp(checkUser: suspend () -> Boolean) {
         // Select trump by dealer/kitty exchange
         while(turn < 4) {
             if(
@@ -133,15 +130,14 @@ class Game {
                     val check = hands[whoseTurn()].aiShouldPickItUp(kitty)
                     Log.d("EUCHRE", "AI: Should pick it up $check")
                     check
-                    false
                 } else {
                     Log.d("EUCHRE", "USER: Should pick it up: $checkUser")
-                    checkUser
+                    checkUser()
                 }
             ) {
                 if(kitty[0].suit != "T") {
                     trump = "${kitty[0].suit}"
-                    println("${whoseTurn()} told the dealer to pick up Kitty card\nTrump Selected by Kitty: ${trump}")
+                    println("${whoseTurn()} told the dealer to pick up Kitty card\nTrump Selected by Kitty: $trump")
                 }
                 hands[dealer].pickItUp(kitty)
                 break
@@ -153,11 +149,10 @@ class Game {
 
     suspend fun phaseSelectTrump(checkUser: suspend () -> String) {
         while(trump == "" && turn < 4) {
-            if(hands[whoseTurn()].isAI) {
-                trump = "${hands[whoseTurn()].selectTrump()}"
-                trump = ""
+            trump = if(hands[whoseTurn()].isAI) {
+                "${hands[whoseTurn()].selectTrump()}"
             } else {
-                trump = "${checkUser()}"
+                "${checkUser()}"
             }
 
             if(turn == 3 && trump == "") {
@@ -166,7 +161,7 @@ class Game {
             }
 
             if(trump != "") {
-                Log.d("EUCHRE","Trump Selected by ${whoseTurn()}: ${trump}")
+                Log.d("EUCHRE","Trump Selected by ${whoseTurn()}: $trump")
                 break
             }
 
@@ -175,12 +170,15 @@ class Game {
         turn = 0
     }
 
-    fun phaseGoAlone() {
+    suspend fun phaseGoAlone(checkUser: suspend () -> Boolean) {
         while(turn < 4) {
-            if(hands[whoseTurn()].shouldGoAlone()) {
+            if(if(hands[whoseTurn()].isAI) {
+                hands[whoseTurn()].shouldGoAlone()
+            } else { checkUser() }) {
                 goingAlone = whoseTurn()
                 break
             }
+
             turn++
         }
         turn = 0
@@ -189,13 +187,12 @@ class Game {
     suspend fun phasePlay(checkUser: suspend () -> Card) {
         while(trick < 5) {
             Log.d("EUCHRE", "Trick $trick")
-            trickCards = Trick()
             while (turn < 4) {
                 Log.d("EUCHRE", "\tTurn $turn")
                 // Skip player if partner is going alone.
                 if (goingAlone > -1 && goingAlone != whoseTurn()) {
                     if (goingAlone % 2 == whoseTurn() % 2) {
-                        Log.d("EUCHRE", "${goingAlone} is going alone.")
+                        Log.d("EUCHRE", "$goingAlone is going alone.")
                         turn++
                         continue
                     }
@@ -216,7 +213,8 @@ class Game {
             turn = 0
 
             hands[trickCards.winningHand()].tricks.add(trickCards)
-            delay(1000)
+            delay(1500)
+            trickCards = Trick()
             trick++
         }
 
@@ -389,8 +387,6 @@ open class Stack : MutableList<Card> by mutableListOf() {
 
 class Hand(hand: Int) : Stack() {
     var isAI: Boolean = true
-    var shouldPickItUpResp: Int = 0
-    var shouldPickItUpTurn: Boolean = false
     val tricks: MutableList<Trick> = mutableListOf()
     val hand: Int = hand
 
@@ -403,27 +399,27 @@ class Hand(hand: Int) : Stack() {
 
     fun aiShouldPickItUp(kitty: Stack): Boolean {
         val avgScore = calculateIdealTrump()
-        return avgScore.size > 0 && avgScore[0].first == kitty[0].suit
+        return avgScore.isNotEmpty() && avgScore[0].first == kitty[0].suit
     }
 
     fun shouldGoAlone(): Boolean {
         //@TODO query user input
         //@TODO write ai for perfect play
-        return calculateGoAlone().size > 0
+        return calculateGoAlone().isNotEmpty()
     }
 
     /**
      * Calculate the average scoring range of cards per suit.
      */
     fun calculate(vararg suits: String): MutableMap<String, Pair<Int, Int>> {
-        val suits = if(suits.size > 0) { suits } else { arrayOf("♠", "♥", "♣", "♦") }
+        val suits = if(suits.isNotEmpty()) { suits } else { arrayOf("♠", "♥", "♣", "♦") }
         val avgScores: MutableMap<String, Pair<Int, Int>> = mutableMapOf()
         for(suit in suits) {
-            var suitAvgScore: MutableList<Int> = mutableListOf()
+            val suitAvgScore: MutableList<Int> = mutableListOf()
             for(card in suited(suit).bestCards()) {
                 suitAvgScore.add(scoreOrderIndex(card))
             }
-            avgScores.put(suit, Pair(suitAvgScore.size, suitAvgScore.average().toInt()))
+            avgScores[suit] = Pair(suitAvgScore.size, suitAvgScore.average().toInt())
         }
 
         return avgScores
@@ -451,7 +447,7 @@ class Hand(hand: Int) : Stack() {
         val avgScore = calculateIdealTrump()
 
         // The first is the ideal
-        if (avgScore.size > 0) {
+        if (avgScore.isNotEmpty()) {
             return avgScore[0].first
         }
 
@@ -513,7 +509,7 @@ class Deck : Stack() {
 fun main() {
     val game = Game()
     for(i in (0..0)) {
-        println("Game ${i}")
+        println("Game $i")
         game.shuffle()
         game.cut()
         game.deal()

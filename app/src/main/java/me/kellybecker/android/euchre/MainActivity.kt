@@ -72,14 +72,17 @@ fun MainActivityContent(gameInstance: Game) {
             val flowPickItUp =  remember { MutableSharedFlow<Boolean>() }
             var showSelectTrump by remember { mutableStateOf(false)  }
             val flowSelectTrump =  remember { MutableSharedFlow<String>() }
+            var showGoAlone by remember { mutableStateOf(false) }
+            val flowGoAlone =  remember { MutableSharedFlow<Boolean>() }
             var showYourTurn by remember { mutableStateOf(false) }
             val flowYourTurn =  remember { MutableSharedFlow<Card>()  }
 
             LaunchedEffect(Unit) {
                 // Pick It Up to Select Trump
-                showPickItUp = true
-                val pickItUp = flowPickItUp.first()
-                gameInstance.phasePickItUp(pickItUp)
+                gameInstance.phasePickItUp {
+                    showPickItUp = true
+                    flowPickItUp.first()
+                }
 
                 // Select Trump
                 if(gameInstance.trump() == "") {
@@ -88,6 +91,13 @@ fun MainActivityContent(gameInstance: Game) {
                             showSelectTrump = true
                             flowSelectTrump.first()
                         }
+                    }
+                }
+
+                gameInstance.phaseGoAlone {
+                    coroutineScope {
+                        showGoAlone = true
+                        flowGoAlone.first()
                     }
                 }
 
@@ -112,6 +122,10 @@ fun MainActivityContent(gameInstance: Game) {
                 onSelectTrump = { selectTrump ->
                     scope.launch { flowSelectTrump.emit(selectTrump); showSelectTrump = false }
                 },
+                showGoAlone = showGoAlone,
+                onGoAlone = { goAlone ->
+                    scope.launch { flowGoAlone.emit(goAlone); showGoAlone = false }
+                },
                 showYourTurn = showYourTurn,
                 onYourTurn = { selectCard ->
                     scope.launch { flowYourTurn.emit(selectCard); showYourTurn = false }
@@ -129,6 +143,8 @@ fun CardTable(
     onPickItUp: (Boolean) -> Unit,
     showSelectTrump: Boolean,
     onSelectTrump: (String) -> Unit,
+    showGoAlone: Boolean,
+    onGoAlone: (Boolean) -> Unit,
     showYourTurn: Boolean,
     onYourTurn: (Card) -> Unit,
 ) {
@@ -179,6 +195,27 @@ fun CardTable(
                         GameCard("♦", onClick = { onSelectTrump("♦") })
                         GameCard("♣", onClick = { onSelectTrump("♣") })
                     }
+                }
+            }
+        )
+    }
+
+    if(showGoAlone) {
+        AlertDialog(
+            onDismissRequest = {},
+            dismissButton = {
+                Button(onClick = { onGoAlone(false) }) {
+                    Text("No")
+                }
+            },
+            confirmButton = {
+                Button(onClick = { onGoAlone(true) }) {
+                    Text("Yes")
+                }
+            },
+            title = {
+                Column {
+                    Text("Should I Go Alone?")
                 }
             }
         )
