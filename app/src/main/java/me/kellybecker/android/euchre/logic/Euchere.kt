@@ -3,6 +3,7 @@ package me.kellybecker.android.euchre.logic
 import android.util.Log
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 
 var trump: String = ""
@@ -132,6 +133,7 @@ class Game {
                     val check = hands[whoseTurn()].aiShouldPickItUp(kitty)
                     Log.d("EUCHRE", "AI: Should pick it up $check")
                     check
+                    false
                 } else {
                     Log.d("EUCHRE", "USER: Should pick it up: $checkUser")
                     checkUser
@@ -149,12 +151,13 @@ class Game {
         turn = 0
     }
 
-    fun phaseSelectTrump(checkUser: String) {
+    suspend fun phaseSelectTrump(checkUser: suspend () -> String) {
         while(trump == "" && turn < 4) {
             if(hands[whoseTurn()].isAI) {
                 trump = "${hands[whoseTurn()].selectTrump()}"
+                trump = ""
             } else {
-                trump = "${checkUser}"
+                trump = "${checkUser()}"
             }
 
             if(turn == 3 && trump == "") {
@@ -172,8 +175,7 @@ class Game {
         turn = 0
     }
 
-    fun play() {
-        // Go alone for a round
+    fun phaseGoAlone() {
         while(turn < 4) {
             if(hands[whoseTurn()].shouldGoAlone()) {
                 goingAlone = whoseTurn()
@@ -182,30 +184,47 @@ class Game {
             turn++
         }
         turn = 0
+    }
 
-        println(this)
-
-        while(trick < 4) {
+    suspend fun phasePlay(checkUser: suspend () -> Card) {
+        while(trick < 5) {
+            Log.d("EUCHRE", "Trick $trick")
             trickCards = Trick()
-            while(turn < 4) {
+            while (turn < 4) {
+                Log.d("EUCHRE", "\tTurn $turn")
                 // Skip player if partner is going alone.
-                if(goingAlone > -1 && goingAlone != whoseTurn()) {
-                    if(goingAlone % 2 == whoseTurn() % 2) {
-                        println("${goingAlone} is going alone.")
+                if (goingAlone > -1 && goingAlone != whoseTurn()) {
+                    if (goingAlone % 2 == whoseTurn() % 2) {
+                        Log.d("EUCHRE", "${goingAlone} is going alone.")
                         turn++
                         continue
                     }
                 }
 
-                hands[whoseTurn()].play(trickCards)
-                println("\t${trickCards}")
+                if (hands[whoseTurn()].isAI) {
+                    //delay(500)
+                    hands[whoseTurn()].play(trickCards)
+                } else {
+                    val card = checkUser()
+                    hands[whoseTurn()].remove(card)
+                    trickCards.play(whoseTurn(), card)
+                }
+
+                Log.d("EUCHRE","\t${trickCards}")
                 turn++
             }
             turn = 0
-            
+
             hands[trickCards.winningHand()].tricks.add(trickCards)
+            delay(1000)
             trick++
         }
+
+        trick = 0
+    }
+
+    fun play() {
+        println(this)
     }
 
     fun nextHand() {
