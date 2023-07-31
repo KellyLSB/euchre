@@ -48,11 +48,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val gameInstance = Game()
 
-        // Assuming local hosted game
-        gameInstance.shuffle()
-        gameInstance.cut(/* onMyCut = { /*  */ } */)
-        gameInstance.deal()
-
         setContent { MainActivityContent(gameInstance) }
     }
 }
@@ -68,6 +63,8 @@ fun MainActivityContent(gameInstance: Game) {
             val scope = rememberCoroutineScope()
 
             // User Input Dialogs
+            var showCutDeck by remember { mutableStateOf(false)   }
+            val flowCutDeck  = remember { MutableSharedFlow<Boolean>() }
             var showPickItUp by remember { mutableStateOf(false)   }
             val flowPickItUp =  remember { MutableSharedFlow<Boolean>() }
             var showSelectTrump by remember { mutableStateOf(false)  }
@@ -78,6 +75,15 @@ fun MainActivityContent(gameInstance: Game) {
             val flowYourTurn =  remember { MutableSharedFlow<Card>()  }
 
             LaunchedEffect(Unit) {
+                gameInstance.shuffle()
+
+                gameInstance.phaseCut {
+                    showCutDeck = true
+                    flowCutDeck.first()
+                }
+
+                gameInstance.deal()
+
                 // Pick It Up to Select Trump
                 gameInstance.phasePickItUp {
                     showPickItUp = true
@@ -114,6 +120,10 @@ fun MainActivityContent(gameInstance: Game) {
             CardTable(
                 player = 1,
                 gameInstance = gameInstance,
+                showCutDeck = showCutDeck,
+                onCutDeck = { cut ->
+                    scope.launch { flowCutDeck.emit(cut); showCutDeck = false }
+                },
                 showPickItUp = showPickItUp,
                 onPickItUp = { pick ->
                     scope.launch { flowPickItUp.emit(pick); showPickItUp = false }
@@ -139,6 +149,8 @@ fun MainActivityContent(gameInstance: Game) {
 fun CardTable(
     player: Int,
     gameInstance: Game,
+    showCutDeck: Boolean,
+    onCutDeck: (Boolean) -> Unit,
     showPickItUp: Boolean,
     onPickItUp: (Boolean) -> Unit,
     showSelectTrump: Boolean,
@@ -149,6 +161,25 @@ fun CardTable(
     onYourTurn: (Card) -> Unit,
 ) {
     gameInstance.hands[(player + 0) % 4].isAI = false
+
+    if(showCutDeck) {
+        AlertDialog(
+            onDismissRequest = {},
+            dismissButton = {
+                Button(onClick = { onCutDeck(false) }) {
+                    Text("Pass")
+                }
+            },
+            confirmButton = {
+                Button(onClick = { onCutDeck(true) }) {
+                    Text("Cut")
+                }
+            },
+            title = {
+                Text("Cut the Deck?")
+            }
+        )
+    }
 
     if(showPickItUp) {
         AlertDialog(
@@ -254,10 +285,12 @@ fun CardTable(
             ) {
                 if(gameInstance.trump() == "") {
                     Text("Kitty")
-                    GameCard(
-                        gameInstance.kitty[0].suit,
-                        gameInstance.kitty[0].card,
-                    )
+                    if(gameInstance.kitty.isNotEmpty()) {
+                        GameCard(
+                            gameInstance.kitty[0].suit,
+                            gameInstance.kitty[0].card,
+                        )
+                    }
                 } else {
                     Text("Trump")
                     GameCard(gameInstance.trump(), "")

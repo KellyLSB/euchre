@@ -40,19 +40,23 @@ fun scoreOrderIndex(card: Card, reverse: Boolean = false): Int {
     } else {
         scoreOrder.toList()
     }
-    
-    return if(trump != "" && card.card == "J" && isBowerSuit(card.suit)) {
-        //println("\t${card.suit}${isBower(card.suit)}")
+
+    var scoreCard: String = ""
+    val score = if(trump != "" && card.card == "J" && isBowerSuit(card.suit)) {
+        scoreCard = isBower(card.suit)
         tmpScoreOrder.indexOf(isBower(card.suit))
     } else {
         if(trump != "" && card.card != "T" && trump != card.suit) {
-            //println("\t${card.suit}A${card.card}")
+            scoreCard = "A${card.card}"
             tmpScoreOrder.indexOf("A${card.card}")
         } else {
-            //println("\t${card.suit}${card.card}")
+            scoreCard = card.card
             tmpScoreOrder.indexOf(card.card)
         }
     }
+
+    Log.d("EUCHRE", "$card ($scoreCard): $score")
+    return score
 }
 
 /**
@@ -119,6 +123,16 @@ class Game {
                     kitty.add(deck.removeFirst())
                 }
             }
+        }
+    }
+
+    suspend fun phaseCut(checkUser: suspend () -> Boolean) {
+        if(hands[(dealer + 1) % 4].isAI) {
+            if((0..1).random() > 0) {
+                this.cut()
+            }
+        } else {
+            if(checkUser()) this.cut()
         }
     }
 
