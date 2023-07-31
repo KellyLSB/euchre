@@ -100,18 +100,22 @@ fun MainActivityContent(gameInstance: Game) {
                     }
                 }
 
-                gameInstance.phaseGoAlone {
-                    coroutineScope {
-                        showGoAlone = true
-                        flowGoAlone.first()
+                if(gameInstance.trump() != "") {
+                    gameInstance.phaseGoAlone {
+                        coroutineScope {
+                            showGoAlone = true
+                            flowGoAlone.first()
+                        }
                     }
-                }
 
-                gameInstance.phasePlay {
-                    coroutineScope {
-                        showYourTurn = true
-                        flowYourTurn.first()
+                    gameInstance.phasePlay {
+                        coroutineScope {
+                            showYourTurn = true
+                            flowYourTurn.first()
+                        }
                     }
+                } else {
+                    // Redeal...
                 }
             }
 
