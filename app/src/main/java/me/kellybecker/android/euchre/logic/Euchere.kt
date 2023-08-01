@@ -79,7 +79,7 @@ class WebSocket {
     suspend fun connect() {
         session = client.webSocketSession(
             method = HttpMethod.Get,
-            host = "127.0.0.1",
+            host = "10.0.2.2",
             port = 8080,
             path = "/ws"
         )

@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import io.ktor.websocket.Frame
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -76,6 +77,8 @@ fun MainActivityContent(gameInstance: Game) {
 
             LaunchedEffect(Unit) {
                 gameInstance.webSocket.connect()
+                gameInstance.webSocket.onMessage { Log.d("WS", it) }
+                gameInstance.webSocket.send(Frame.Text("Greetings"))
 
                 gameInstance.shuffle()
 
