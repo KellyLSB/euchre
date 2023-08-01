@@ -1,7 +1,17 @@
 package me.kellybecker.android.euchre.logic
 
 import android.util.Log
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.client.plugins.websocket.webSocketSession
+import io.ktor.http.HttpMethod
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readBytes
+import io.ktor.websocket.readText
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 var trump: String = ""
 
@@ -59,6 +69,34 @@ fun scoreOrderIndex(card: Card, reverse: Boolean = false): Int {
     return score
 }
 
+class WebSocket {
+    val client: HttpClient = HttpClient {
+        install(WebSockets)
+    }
+
+    lateinit var session: DefaultClientWebSocketSession
+
+    suspend fun connect() {
+        session = client.webSocketSession(
+            method = HttpMethod.Get,
+            host = "127.0.0.1",
+            port = 8080,
+            path = "/ws"
+        )
+    }
+
+    suspend fun onMessage(onMsg: (String) -> Unit) {
+        session.launch {
+            for(msg in session.incoming) {
+                msg as? Frame.Text ?: continue
+                onMsg(msg.readText())
+            }
+        }
+    }
+
+    suspend fun send(msg: Frame) { session.send(msg) }
+}
+
 /**
  * All the hands in the game, deck and kitty
  */
@@ -82,11 +120,8 @@ class Game {
     var trick: Int = 0
     var trickCards: Trick = Trick()
 
-//    // Callback Register
-//    var onShouldPickItUp: ((Hand, Stack) -> Boolean)? = {},
-//    var onSelectTrump: ((Hand) -> String)? = {},
-//    var onShouldGoAlone: ((Hand) -> Boolean)? = {},
-//    var onPlayCard: ((Hand, Trick) -> Unit)? = {},
+    // WebSockets
+    val webSocket: WebSocket = WebSocket()
 
     // Shuffle the cards
     fun shuffle() { deck.shuffle() }

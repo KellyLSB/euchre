@@ -75,6 +75,8 @@ fun MainActivityContent(gameInstance: Game) {
             val flowYourTurn =  remember { MutableSharedFlow<Card>()  }
 
             LaunchedEffect(Unit) {
+                gameInstance.webSocket.connect()
+
                 gameInstance.shuffle()
 
                 gameInstance.phaseCut {
