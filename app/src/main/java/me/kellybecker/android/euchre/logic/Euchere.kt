@@ -4,11 +4,9 @@ import android.util.Log
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.http.HttpMethod
 import io.ktor.websocket.Frame
-import io.ktor.websocket.readBytes
 import io.ktor.websocket.readText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -38,7 +36,7 @@ fun isBower(suit: String): String {
 
 val scoreOrder: List<String> = listOf(
     "T", "J1", "J2", "J", "A", "K", "Q", "10", "9",
-    "AJ", "AK", "AQ", "A10", "A9",
+    "AA", "AK", "AQ", "AJ", "A10", "A9",
 )
 
 /**
@@ -124,7 +122,7 @@ class Game {
     val webSocket: WebSocket = WebSocket()
 
     // Shuffle the cards
-    fun shuffle() { deck.shuffle() }
+    fun shuffle() { deck.shuffleCards() }
     // Cut the deck
     fun cut() { deck.cut() }
     // What is trump
@@ -427,6 +425,25 @@ open class Stack : MutableList<Card> by mutableListOf() {
             scoreOrderIndex(it, true)
         })
         return tmp
+    }
+    fun shuffleCards() {
+        when((0..4).random()) {
+            0 -> shuffleA(2, 3)
+            1 -> shuffleA(2, 2)
+            2 -> shuffleA(2, 2)
+            3 -> shuffleA(3, 1)
+            else -> shuffle()
+        }
+    }
+
+    fun shuffleA(s: Int = 2, t: Int = 1) {
+        repeat(t) {
+            val tmp: MutableList<MutableList<Card>> = mutableListOf<MutableList<Card>>()
+            repeat(s) { tmp.add(mutableListOf<Card>()) }
+            forEachIndexed { i, card -> tmp[i % s].add(card) }
+            removeAll { true }
+            addAll(tmp.flatten())
+        }
     }
 
     override fun toString(): String {

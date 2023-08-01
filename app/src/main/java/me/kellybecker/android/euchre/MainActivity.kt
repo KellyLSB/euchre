@@ -76,9 +76,9 @@ fun MainActivityContent(gameInstance: Game) {
             val flowYourTurn =  remember { MutableSharedFlow<Card>()  }
 
             LaunchedEffect(Unit) {
-                gameInstance.webSocket.connect()
-                gameInstance.webSocket.onMessage { Log.d("WS", it) }
-                gameInstance.webSocket.send(Frame.Text("Greetings"))
+                //gameInstance.webSocket.connect()
+                //gameInstance.webSocket.onMessage { Log.d("WS", it) }
+                //gameInstance.webSocket.send(Frame.Text("Greetings"))
 
                 gameInstance.shuffle()
 
