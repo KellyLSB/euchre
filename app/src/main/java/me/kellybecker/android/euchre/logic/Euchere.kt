@@ -315,18 +315,18 @@ class Card(suit: String, card: String) {
         var cardA = this.card
         var cardB = b.card
 
-        when(suit) {
-            trump -> {
-                if (cardA == "J") {
-                    cardA = isBower(this.suit)
-                }
+        // Set the bower cards for higher scoring
+        if (cardA == "J" && isBowerSuit(this.suit)) {
+            cardA = isBower(this.suit)
+        }
+        if (cardB == "J" && isBowerSuit(b.suit)) {
+            cardB = isBower(b.suit)
+        }
 
-                if (cardB == "J") {
-                    cardB = isBower(b.suit)
-                }
-            }
+        // If a specified suit order position in score index
+        when(suit) {
             "" -> {
-                // I don't want to assume Bower order
+                // If no suit was specified
             }
             else -> {
                 if(this.suit != suit) {
@@ -383,7 +383,14 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
 
     fun play(hand: Int, card: Card): Card? {
         if(suit == "" && size < 1) {
-            suit = card.suit
+            // If the card is a Bower infer the trick's suit as trump
+            if(card.card == "J" && isBowerSuit(card.suit)) {
+                suit = trump
+            } else {
+                suit = card.suit
+            }
+
+            // If the card is trump infer the trick's suit as trump
             if(suit == "T") {
                 suit = trump
             }
@@ -397,7 +404,7 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
     }
 
     fun compareCards(a: Card, b: Card): Int {
-        return a.suitedCompareTo(toList().first().second.suit, b)
+        return a.suitedCompareTo(suit, b)
     }
 }
 
