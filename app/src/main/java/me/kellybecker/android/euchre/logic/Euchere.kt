@@ -35,7 +35,7 @@ fun isBower(suit: String): String {
 }
 
 val scoreOrder: List<String> = listOf(
-    "T", "J1", "J2", "J", "A", "K", "Q", "10", "9",
+    "T", "J1", "J2", "A", "K", "Q", "J", "10", "9",
     "AA", "AK", "AQ", "AJ", "A10", "A9",
 )
 
@@ -290,6 +290,11 @@ class Game {
         kitty.reset()
     }
 
+    fun reset() {
+        nextHand()
+        dealer = 0
+    }
+
     fun whoseTurn(): Int {
         return (dealer + turn) % 4
     }
@@ -306,20 +311,36 @@ class Card(suit: String, card: String) {
     val suit: String = suit
     val card: String = card
 
-    // Suitless comparision
-    operator fun compareTo(b: Card): Int {
-        println("\t${card}: ${scoreOrder.indexOf(card)}")
-        println("\t${b.card}: ${scoreOrder.indexOf(b.card)}")
-        var cardA = card
+    fun suitedCompareTo(suit: String, b: Card): Int {
+        var cardA = this.card
         var cardB = b.card
 
-        if(cardA == "J") {
-            cardA = isBower(suit)
+        when(suit) {
+            trump -> {
+                if (cardA == "J") {
+                    cardA = isBower(this.suit)
+                }
+
+                if (cardB == "J") {
+                    cardB = isBower(b.suit)
+                }
+            }
+            "" -> {
+                // I don't want to assume Bower order
+            }
+            else -> {
+                if(this.suit != suit) {
+                    cardA = "A${cardA}"
+                }
+
+                if(b.suit != suit) {
+                    cardB = "A${cardB}"
+                }
+            }
         }
 
-        if(cardB == "J") {
-            cardB = isBower(b.suit)
-        }
+        println("\t${cardA}: ${scoreOrder.indexOf(cardA)}")
+        println("\t${cardB}: ${scoreOrder.indexOf(cardB)}")
 
         val tmp = scoreOrder.indexOf(cardA).compareTo(
             scoreOrder.indexOf(cardB)
@@ -330,6 +351,11 @@ class Card(suit: String, card: String) {
             1  -> -1
             else -> 0
         }
+    }
+
+    // Suitless comparision
+    operator fun compareTo(b: Card): Int {
+        return suitedCompareTo("", b)
     }
 
     override fun toString(): String {
@@ -369,6 +395,10 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
     override fun toString(): String {
         return toMap().toString()
     }
+
+    fun compareCards(a: Card, b: Card): Int {
+        return a.suitedCompareTo(toList().first().second.suit, b)
+    }
 }
 
 /**
@@ -394,6 +424,7 @@ open class Stack : MutableList<Card> by mutableListOf() {
     open fun reset() { removeAll{true} }
 
     // Suitable cards
+    // If bower is lead should use trump suit...
     open fun suited(suit: String): Stack {
         val tmp = Stack()
         tmp.addAll(filter { 
@@ -528,7 +559,8 @@ class Hand(hand: Int) : Stack() {
             val bestCard = trick.bestCard()
             val ourCards = suited(trick.suit).bestCards()
             if(ourCards.size > 0) {
-                if(bestCard > ourCards[0]) {
+                // bestCard > ourCards[0]
+                if(trick.compareCards(bestCard, ourCards[0]) > 0) {
                     println("Their card is better")
                     remove(ourCards.last())
                     trick.play(this.hand, ourCards.last())

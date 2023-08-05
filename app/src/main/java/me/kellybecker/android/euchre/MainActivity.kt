@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,13 +15,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,7 +39,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import io.ktor.websocket.Frame
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -53,103 +56,172 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainActivityContent(gameInstance: Game) {
+    val scope = rememberCoroutineScope()
+
+    // WebSockets / Select my Hand
+    var idRoom by remember { mutableStateOf("Room") }
+    var idPlayer by remember { mutableStateOf(0) }
+
+    // User Input Dialogs
+    var showCutDeck by remember { mutableStateOf(false)   }
+    val flowCutDeck  = remember { MutableSharedFlow<Boolean>() }
+    var showPickItUp by remember { mutableStateOf(false)   }
+    val flowPickItUp =  remember { MutableSharedFlow<Boolean>() }
+    var showSelectTrump by remember { mutableStateOf(false)  }
+    val flowSelectTrump =  remember { MutableSharedFlow<String>() }
+    var showGoAlone by remember { mutableStateOf(false) }
+    val flowGoAlone =  remember { MutableSharedFlow<Boolean>() }
+    var showYourTurn by remember { mutableStateOf(false) }
+    val flowYourTurn =  remember { MutableSharedFlow<Card>()  }
+
+    LaunchedEffect(Unit) {
+        //gameInstance.webSocket.connect()
+        //gameInstance.webSocket.onMessage { Log.d("WS", it) }
+        //gameInstance.webSocket.send(Frame.Text("Greetings"))
+
+        gameInstance.shuffle()
+
+        gameInstance.phaseCut {
+            showCutDeck = true
+            flowCutDeck.first()
+        }
+
+        gameInstance.deal()
+
+        // Pick It Up to Select Trump
+        gameInstance.phasePickItUp {
+            showPickItUp = true
+            flowPickItUp.first()
+        }
+
+        // Select Trump
+        if(gameInstance.trump() == "") {
+            gameInstance.phaseSelectTrump {
+                coroutineScope {
+                    showSelectTrump = true
+                    flowSelectTrump.first()
+                }
+            }
+        }
+
+        if(gameInstance.trump() != "") {
+            gameInstance.phaseGoAlone {
+                coroutineScope {
+                    showGoAlone = true
+                    flowGoAlone.first()
+                }
+            }
+
+            gameInstance.phasePlay {
+                coroutineScope {
+                    showYourTurn = true
+                    flowYourTurn.first()
+                }
+            }
+        } else {
+            gameInstance.reset()
+            // Redeal...
+        }
+        // gameInstance.reset()
+        // loop back to the beginning
+        // show the points for the tricks won
+        // across all dealt hands.
+    }
+
+    Log.d("EUCHRE", gameInstance.hands.toString())
+
     EuchreTheme {
         // A surface container using the 'background' color from the theme
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            val scope = rememberCoroutineScope()
-
-            // User Input Dialogs
-            var showCutDeck by remember { mutableStateOf(false)   }
-            val flowCutDeck  = remember { MutableSharedFlow<Boolean>() }
-            var showPickItUp by remember { mutableStateOf(false)   }
-            val flowPickItUp =  remember { MutableSharedFlow<Boolean>() }
-            var showSelectTrump by remember { mutableStateOf(false)  }
-            val flowSelectTrump =  remember { MutableSharedFlow<String>() }
-            var showGoAlone by remember { mutableStateOf(false) }
-            val flowGoAlone =  remember { MutableSharedFlow<Boolean>() }
-            var showYourTurn by remember { mutableStateOf(false) }
-            val flowYourTurn =  remember { MutableSharedFlow<Card>()  }
-
-            LaunchedEffect(Unit) {
-                //gameInstance.webSocket.connect()
-                //gameInstance.webSocket.onMessage { Log.d("WS", it) }
-                //gameInstance.webSocket.send(Frame.Text("Greetings"))
-
-                gameInstance.shuffle()
-
-                gameInstance.phaseCut {
-                    showCutDeck = true
-                    flowCutDeck.first()
-                }
-
-                gameInstance.deal()
-
-                // Pick It Up to Select Trump
-                gameInstance.phasePickItUp {
-                    showPickItUp = true
-                    flowPickItUp.first()
-                }
-
-                // Select Trump
-                if(gameInstance.trump() == "") {
-                    gameInstance.phaseSelectTrump {
-                        coroutineScope {
-                            showSelectTrump = true
-                            flowSelectTrump.first()
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                TopAppBar(
+                    title = {
+                        BasicTextField(
+                            value = idRoom,
+                            onValueChange = { r: String -> idRoom = r }
+                        )
+                    },
+                    actions = {
+                        Button(
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if(idPlayer == 0) {
+                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                }
+                            ), onClick = { idPlayer = 0 },
+                        ) {
+                            Text("0")
+                        }
+                        Button(
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if(idPlayer == 1) {
+                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                }
+                            ), onClick = { idPlayer = 1 }
+                        ) {
+                            Text("1")
+                        }
+                        Button(
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if(idPlayer == 2) {
+                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                }
+                            ), onClick = { idPlayer = 2 }
+                        ) {
+                            Text("2")
+                        }
+                        Button(
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = if(idPlayer == 3) {
+                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                }
+                            ), onClick = { idPlayer = 3 }
+                        ) {
+                            Text("3")
                         }
                     }
-                }
-
-                if(gameInstance.trump() != "") {
-                    gameInstance.phaseGoAlone {
-                        coroutineScope {
-                            showGoAlone = true
-                            flowGoAlone.first()
-                        }
+                )
+                CardTable(
+                    player = 1,
+                    gameInstance = gameInstance,
+                    showCutDeck = showCutDeck,
+                    onCutDeck = { cut ->
+                        scope.launch { flowCutDeck.emit(cut); showCutDeck = false }
+                    },
+                    showPickItUp = showPickItUp,
+                    onPickItUp = { pick ->
+                        scope.launch { flowPickItUp.emit(pick); showPickItUp = false }
+                    },
+                    showSelectTrump = showSelectTrump,
+                    onSelectTrump = { selectTrump ->
+                        scope.launch { flowSelectTrump.emit(selectTrump); showSelectTrump = false }
+                    },
+                    showGoAlone = showGoAlone,
+                    onGoAlone = { goAlone ->
+                        scope.launch { flowGoAlone.emit(goAlone); showGoAlone = false }
+                    },
+                    showYourTurn = showYourTurn,
+                    onYourTurn = { selectCard ->
+                        scope.launch { flowYourTurn.emit(selectCard); showYourTurn = false }
                     }
-
-                    gameInstance.phasePlay {
-                        coroutineScope {
-                            showYourTurn = true
-                            flowYourTurn.first()
-                        }
-                    }
-                } else {
-                    // Redeal...
-                }
+                )
             }
-
-            Log.d("EUCHRE", gameInstance.hands.toString())
-
-            CardTable(
-                player = 1,
-                gameInstance = gameInstance,
-                showCutDeck = showCutDeck,
-                onCutDeck = { cut ->
-                    scope.launch { flowCutDeck.emit(cut); showCutDeck = false }
-                },
-                showPickItUp = showPickItUp,
-                onPickItUp = { pick ->
-                    scope.launch { flowPickItUp.emit(pick); showPickItUp = false }
-                },
-                showSelectTrump = showSelectTrump,
-                onSelectTrump = { selectTrump ->
-                    scope.launch { flowSelectTrump.emit(selectTrump); showSelectTrump = false }
-                },
-                showGoAlone = showGoAlone,
-                onGoAlone = { goAlone ->
-                    scope.launch { flowGoAlone.emit(goAlone); showGoAlone = false }
-                },
-                showYourTurn = showYourTurn,
-                onYourTurn = { selectCard ->
-                    scope.launch { flowYourTurn.emit(selectCard); showYourTurn = false }
-                }
-            )
         }
     }
 }
@@ -394,7 +466,6 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameCard(
     suit: String,
@@ -410,7 +481,9 @@ fun GameCard(
         Color.Black
     }
 
-    Card(modifier = Modifier.padding(2.5.dp).clickable(onClick = onClick)) {
+    Card(modifier = Modifier
+        .padding(2.5.dp)
+        .clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(1.7.dp, end = 3.2563.dp)) {
             if(openHand) {
                 Text(suit, color = suitColor, fontWeight = FontWeight.Black)
