@@ -63,7 +63,9 @@ fun MainActivityContent(gameInstance: Game) {
 
     // WebSockets / Select my Hand
     var idRoom by remember { mutableStateOf("Room") }
-    var idPlayer by remember { mutableStateOf(0) }
+    var idPlayer by remember { mutableStateOf(1) }
+    var showReady by remember { mutableStateOf(true) }
+    val flowReady  = remember { MutableSharedFlow<Boolean>() }
 
     // User Input Dialogs
     var showCutDeck by remember { mutableStateOf(false)   }
@@ -81,6 +83,8 @@ fun MainActivityContent(gameInstance: Game) {
         //gameInstance.webSocket.connect()
         //gameInstance.webSocket.onMessage { Log.d("WS", it) }
         //gameInstance.webSocket.send(Frame.Text("Greetings"))
+
+        flowReady.first()
 
         gameInstance.shuffle()
 
@@ -139,88 +143,120 @@ fun MainActivityContent(gameInstance: Game) {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                TopAppBar(
-                    title = {
-                        BasicTextField(
-                            value = idRoom,
-                            onValueChange = { r: String -> idRoom = r }
-                        )
-                    },
-                    actions = {
-                        Button(
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if(idPlayer == 0) {
-                                    MaterialTheme.colorScheme.onTertiaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
+                if(showReady) {
+                    TopAppBar(
+                        title = {
+                            BasicTextField(
+                                value = idRoom,
+                                onValueChange = { r: String -> idRoom = r }
+                            )
+                        },
+                        actions = {
+                            Button(
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (idPlayer == 0) {
+                                        MaterialTheme.colorScheme.onTertiaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    }
+                                ),
+                                onClick = {
+                                    idPlayer = 0
+                                    gameInstance.hands.forEachIndexed { index, hand ->
+                                        hand.isAI = 0 % 4 != index
+                                    }
+                                },
+                            ) {
+                                Text("0")
+                            }
+                            Button(
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (idPlayer == 1) {
+                                        MaterialTheme.colorScheme.onTertiaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    }
+                                ), onClick = {
+                                    idPlayer = 1
+                                    gameInstance.hands.forEachIndexed { index, hand ->
+                                        hand.isAI = 1 % 4 != index
+                                    }
                                 }
-                            ), onClick = { idPlayer = 0 },
-                        ) {
-                            Text("0")
-                        }
-                        Button(
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if(idPlayer == 1) {
-                                    MaterialTheme.colorScheme.onTertiaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
+                            ) {
+                                Text("1")
+                            }
+                            Button(
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (idPlayer == 2) {
+                                        MaterialTheme.colorScheme.onTertiaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    }
+                                ), onClick = {
+                                    idPlayer = 2
+                                    gameInstance.hands.forEachIndexed { index, hand ->
+                                        hand.isAI = 2 % 4 != index
+                                    }
                                 }
-                            ), onClick = { idPlayer = 1 }
-                        ) {
-                            Text("1")
-                        }
-                        Button(
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if(idPlayer == 2) {
-                                    MaterialTheme.colorScheme.onTertiaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
+                            ) {
+                                Text("2")
+                            }
+                            Button(
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (idPlayer == 3) {
+                                        MaterialTheme.colorScheme.onTertiaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    }
+                                ), onClick = {
+                                    idPlayer = 3
+                                    gameInstance.hands.forEachIndexed { index, hand ->
+                                        hand.isAI = 3 % 4 != index
+                                    }
                                 }
-                            ), onClick = { idPlayer = 2 }
-                        ) {
-                            Text("2")
+                            ) {
+                                Text("3")
+                            }
                         }
-                        Button(
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = if(idPlayer == 3) {
-                                    MaterialTheme.colorScheme.onTertiaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                }
-                            ), onClick = { idPlayer = 3 }
-                        ) {
-                            Text("3")
-                        }
+                    )
+                    Button(onClick = {
+                        scope.launch { showReady = false; flowReady.emit(true) }
+                    }) {
+                        Text("Ready")
                     }
-                )
-                CardTable(
-                    player = 1,
-                    gameInstance = gameInstance,
-                    showCutDeck = showCutDeck,
-                    onCutDeck = { cut ->
-                        scope.launch { flowCutDeck.emit(cut); showCutDeck = false }
-                    },
-                    showPickItUp = showPickItUp,
-                    onPickItUp = { pick ->
-                        scope.launch { flowPickItUp.emit(pick); showPickItUp = false }
-                    },
-                    showSelectTrump = showSelectTrump,
-                    onSelectTrump = { selectTrump ->
-                        scope.launch { flowSelectTrump.emit(selectTrump); showSelectTrump = false }
-                    },
-                    showGoAlone = showGoAlone,
-                    onGoAlone = { goAlone ->
-                        scope.launch { flowGoAlone.emit(goAlone); showGoAlone = false }
-                    },
-                    showYourTurn = showYourTurn,
-                    onYourTurn = { selectCard ->
-                        scope.launch { flowYourTurn.emit(selectCard); showYourTurn = false }
-                    }
-                )
+                } else {
+                    CardTable(
+                        player = idPlayer,
+                        gameInstance = gameInstance,
+                        showCutDeck = showCutDeck,
+                        onCutDeck = { cut ->
+                            scope.launch { flowCutDeck.emit(cut); showCutDeck = false }
+                        },
+                        showPickItUp = showPickItUp,
+                        onPickItUp = { pick ->
+                            scope.launch { flowPickItUp.emit(pick); showPickItUp = false }
+                        },
+                        showSelectTrump = showSelectTrump,
+                        onSelectTrump = { selectTrump ->
+                            scope.launch {
+                                flowSelectTrump.emit(selectTrump); showSelectTrump = false
+                            }
+                        },
+                        showGoAlone = showGoAlone,
+                        onGoAlone = { goAlone ->
+                            scope.launch { flowGoAlone.emit(goAlone); showGoAlone = false }
+                        },
+                        showYourTurn = showYourTurn,
+                        onYourTurn = { selectCard ->
+                            scope.launch { flowYourTurn.emit(selectCard); showYourTurn = false }
+                        }
+                    )
+                }
             }
         }
     }
@@ -241,8 +277,6 @@ fun CardTable(
     showYourTurn: Boolean,
     onYourTurn: (Card) -> Unit,
 ) {
-    gameInstance.hands[(player + 0) % 4].isAI = false
-
     if(showCutDeck) {
         AlertDialog(
             onDismissRequest = {},
