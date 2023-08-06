@@ -10,6 +10,9 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 var trump: String = ""
 
@@ -67,6 +70,15 @@ fun scoreOrderIndex(card: Card, reverse: Boolean = false): Int {
     return score
 }
 
+@Serializable
+data class WSData(
+    val playerID: Int,
+    val methodID: String,
+    val boolean: Boolean = false,
+    val string: String = "",
+    val card: Card = Card("", ""),
+)
+
 class WebSocket {
     val client: HttpClient = HttpClient {
         install(WebSockets)
@@ -74,25 +86,27 @@ class WebSocket {
 
     lateinit var session: DefaultClientWebSocketSession
 
-    suspend fun connect() {
+    suspend fun connect(host: String = "10.0.2.2", port: Int = 8080) {
         session = client.webSocketSession(
             method = HttpMethod.Get,
-            host = "10.0.2.2",
-            port = 8080,
+            host = host,
+            port = port,
             path = "/ws"
         )
     }
 
-    suspend fun onMessage(onMsg: (String) -> Unit) {
+    suspend fun onMessage(onMsg: (WSData) -> Unit) {
         session.launch {
             for(msg in session.incoming) {
                 msg as? Frame.Text ?: continue
-                onMsg(msg.readText())
+                onMsg(Json.decodeFromString<WSData>(msg.readText()))
             }
         }
     }
 
-    suspend fun send(msg: Frame) { session.send(msg) }
+    suspend fun send(msg: WSData) {
+        session.send(Frame.Text(Json.encodeToString(msg)))
+    }
 }
 
 /**
@@ -160,7 +174,7 @@ class Game {
     }
 
     suspend fun phaseCut(checkUser: suspend () -> Boolean) {
-        if(hands[(dealer + 1) % 4].isAI) {
+        if(hands[(dealer + 1) % 4].playerType == 0) {
             if((0..1).random() > 0) {
                 this.cut()
             }
@@ -173,7 +187,7 @@ class Game {
         // Select trump by dealer/kitty exchange
         while(turn < 4) {
             if(
-                if(hands[whoseTurn()].isAI) {
+                if(hands[whoseTurn()].playerType == 0) {
                     val check = hands[whoseTurn()].aiShouldPickItUp(kitty)
                     Log.d("EUCHRE", "AI: Should pick it up $check")
                     check
@@ -196,7 +210,7 @@ class Game {
 
     suspend fun phaseSelectTrump(checkUser: suspend () -> String) {
         while(trump == "" && turn < 4) {
-            trump = if(hands[whoseTurn()].isAI) {
+            trump = if(hands[whoseTurn()].playerType == 0) {
                 "${hands[whoseTurn()].selectTrump()}"
             } else {
                 "${checkUser()}"
@@ -219,7 +233,7 @@ class Game {
 
     suspend fun phaseGoAlone(checkUser: suspend () -> Boolean) {
         while(turn < 4) {
-            if(if(hands[whoseTurn()].isAI) {
+            if(if(hands[whoseTurn()].playerType == 0) {
                 hands[whoseTurn()].shouldGoAlone()
             } else { checkUser() }) {
                 goingAlone = whoseTurn()
@@ -245,7 +259,7 @@ class Game {
                     }
                 }
 
-                if (hands[whoseTurn()].isAI) {
+                if (hands[whoseTurn()].playerType == 0) {
                     //delay(500)
                     hands[whoseTurn()].play(trickCards)
                 } else {
@@ -295,6 +309,20 @@ class Game {
         dealer = 0
     }
 
+    fun wsMessage(data: WSData, relayed: Boolean = false) {
+        when(data.methodID) {
+            "aiOverride" -> hands[data.playerID].playerType = if(!relayed) {
+                if(data.boolean) { 1 } else { 0 }
+                Log.d("WS", data.boolean.toString())
+            } else { -1 }
+        }
+    }
+
+    suspend fun wsSend(data: WSData) {
+        wsMessage(data, relayed = false)
+        webSocket.send(data)
+    }
+
     fun whoseTurn(offset: Int = 1): Int {
         return (dealer + turn + offset) % 4
     }
@@ -307,6 +335,7 @@ class Game {
 /**
  * Card object
  */
+@Serializable
 class Card(suit: String, card: String) {
     val suit: String = suit
     val card: String = card
@@ -355,6 +384,7 @@ class Card(suit: String, card: String) {
 
     // Suitless comparision
     operator fun compareTo(b: Card): Int {
+        // Should trump be factored always?
         return suitedCompareTo("", b)
     }
 
@@ -499,7 +529,7 @@ open class Stack : MutableList<Card> by mutableListOf() {
 }
 
 class Hand(hand: Int) : Stack() {
-    var isAI: Boolean = true
+    var playerType: Int = 0
     val tricks: MutableList<Trick> = mutableListOf()
     val hand: Int = hand
 

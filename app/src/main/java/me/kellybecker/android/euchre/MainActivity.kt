@@ -39,12 +39,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import io.ktor.websocket.Frame
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.kellybecker.android.euchre.logic.Card
 import me.kellybecker.android.euchre.logic.Game
+import me.kellybecker.android.euchre.logic.WSData
 import me.kellybecker.android.euchre.ui.theme.EuchreTheme
 
 class MainActivity : ComponentActivity() {
@@ -80,10 +82,15 @@ fun MainActivityContent(gameInstance: Game) {
     val flowYourTurn =  remember { MutableSharedFlow<Card>()  }
 
     LaunchedEffect(Unit) {
-        gameInstance.hands[1].isAI = false
-        //gameInstance.webSocket.connect()
-        //gameInstance.webSocket.onMessage { Log.d("WS", it) }
-        //gameInstance.webSocket.send(Frame.Text("Greetings"))
+        gameInstance.webSocket.connect()
+
+        gameInstance.webSocket.onMessage {
+            Log.d("WS", it.toString())
+        }
+
+        gameInstance.webSocket.onMessage {
+            gameInstance.wsMessage(it, relayed = true)
+        }
 
         flowReady.first()
 
@@ -169,8 +176,20 @@ fun MainActivityContent(gameInstance: Game) {
                                 onClick = {
                                     idPlayer = 0
                                     gameInstance.hands.forEachIndexed { index, hand ->
-                                        hand.isAI = 0 % 4 != index
+                                        hand.playerType = if(0 % 4 != index) { 0 } else { 1 }
                                     }
+
+                                    scope.launch {
+                                        gameInstance.webSocket.send(
+                                            WSData(
+                                                playerID = idPlayer,
+                                                methodID = "aiOverride",
+                                                boolean = true,
+                                            )
+                                        )
+                                    }
+
+
                                 },
                             ) {
                                 Text("0")
@@ -185,7 +204,7 @@ fun MainActivityContent(gameInstance: Game) {
                                 ), onClick = {
                                     idPlayer = 1
                                     gameInstance.hands.forEachIndexed { index, hand ->
-                                        hand.isAI = 1 % 4 != index
+                                        hand.playerType = if(1 % 4 != index) { 0 } else { 1 }
                                     }
                                 }
                             ) {
@@ -201,7 +220,7 @@ fun MainActivityContent(gameInstance: Game) {
                                 ), onClick = {
                                     idPlayer = 2
                                     gameInstance.hands.forEachIndexed { index, hand ->
-                                        hand.isAI = 2 % 4 != index
+                                        hand.playerType = if(2 % 4 != index) { 0 } else { 1 }
                                     }
                                 }
                             ) {
@@ -217,7 +236,7 @@ fun MainActivityContent(gameInstance: Game) {
                                 ), onClick = {
                                     idPlayer = 3
                                     gameInstance.hands.forEachIndexed { index, hand ->
-                                        hand.isAI = 3 % 4 != index
+                                        hand.playerType = if(3 % 4 != index) { 0 } else { 1 }
                                     }
                                 }
                             ) {
