@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,7 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import io.ktor.websocket.Frame
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -50,18 +49,28 @@ import me.kellybecker.android.euchre.logic.WSData
 import me.kellybecker.android.euchre.ui.theme.EuchreTheme
 
 class MainActivity : ComponentActivity() {
+    val gameInstance: Game = Game()
+    lateinit var scope: CoroutineScope
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val gameInstance = Game()
+        setContent {
+            scope = rememberCoroutineScope()
+            MainActivityContent(scope, gameInstance)
+        }
+    }
 
-        setContent { MainActivityContent(gameInstance) }
+    override fun onPause() {
+        super.onPause()
+        scope.launch {
+            gameInstance.webSocket.close()
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainActivityContent(gameInstance: Game) {
-    val scope = rememberCoroutineScope()
+fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
 
     // WebSockets / Select my Hand
     var idRoom by remember { mutableStateOf("Room") }
@@ -83,12 +92,10 @@ fun MainActivityContent(gameInstance: Game) {
 
     LaunchedEffect(Unit) {
         gameInstance.webSocket.connect()
+        gameInstance.webSocket.roomID = idRoom
 
         gameInstance.webSocket.onMessage {
-            Log.d("WS", it.toString())
-        }
-
-        gameInstance.webSocket.onMessage {
+            println("Incoming: ${it}")
             gameInstance.wsMessage(it, relayed = true)
         }
 
@@ -161,7 +168,10 @@ fun MainActivityContent(gameInstance: Game) {
                         title = {
                             BasicTextField(
                                 value = idRoom,
-                                onValueChange = { r: String -> idRoom = r }
+                                onValueChange = { r: String ->
+                                    gameInstance.webSocket.roomID = r
+                                    idRoom = r
+                                }
                             )
                         },
                         actions = {
@@ -175,12 +185,9 @@ fun MainActivityContent(gameInstance: Game) {
                                 ),
                                 onClick = {
                                     idPlayer = 0
-                                    gameInstance.hands.forEachIndexed { index, hand ->
-                                        hand.playerType = if(0 % 4 != index) { 0 } else { 1 }
-                                    }
 
                                     scope.launch {
-                                        gameInstance.webSocket.send(
+                                        gameInstance.wsSend(
                                             WSData(
                                                 playerID = idPlayer,
                                                 methodID = "aiOverride",
@@ -559,13 +566,8 @@ fun GameCardPreview() {
 @Composable
 fun MainActivityPreview() {
     val gameInstance = Game()
-
-    // Assuming local hosted game
-    gameInstance.shuffle()
-    gameInstance.cut(/* onMyCut = { /*  */ } */)
-    gameInstance.deal()
-
-    MainActivityContent(gameInstance)
+    val scope = rememberCoroutineScope()
+    MainActivityContent(scope, gameInstance)
 }
 
 // Sample coroutine code from Jacob

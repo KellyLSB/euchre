@@ -7,6 +7,7 @@ import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.http.HttpMethod
 import io.ktor.websocket.Frame
+import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -74,6 +75,7 @@ fun scoreOrderIndex(card: Card, reverse: Boolean = false): Int {
 data class WSData(
     val playerID: Int,
     val methodID: String,
+    val roomID: String = "",
     val boolean: Boolean = false,
     val string: String = "",
     val card: Card = Card("", ""),
@@ -85,6 +87,7 @@ class WebSocket {
     }
 
     lateinit var session: DefaultClientWebSocketSession
+    lateinit var roomID: String
 
     suspend fun connect(host: String = "10.0.2.2", port: Int = 8080) {
         session = client.webSocketSession(
@@ -95,17 +98,26 @@ class WebSocket {
         )
     }
 
+    suspend fun close() { session.close() }
+
     suspend fun onMessage(onMsg: (WSData) -> Unit) {
         session.launch {
             for(msg in session.incoming) {
                 msg as? Frame.Text ?: continue
-                onMsg(Json.decodeFromString<WSData>(msg.readText()))
+                val txt: String = msg.readText()
+                println("Incoming: $txt")
+                onMsg(Json.decodeFromString<WSData>(txt))
             }
         }
     }
 
     suspend fun send(msg: WSData) {
-        session.send(Frame.Text(Json.encodeToString(msg)))
+        val txt: String = Json.encodeToString(msg.copy(
+            roomID = roomID
+        ))
+
+        println("Outgoing: $txt")
+        session.send(Frame.Text(txt))
     }
 }
 
@@ -311,10 +323,14 @@ class Game {
 
     fun wsMessage(data: WSData, relayed: Boolean = false) {
         when(data.methodID) {
+            // Configure game to accept input from where...
             "aiOverride" -> hands[data.playerID].playerType = if(!relayed) {
                 if(data.boolean) { 1 } else { 0 }
                 Log.d("WS", data.boolean.toString())
-            } else { -1 }
+            } else {
+                Log.d("WS", "Remote Player")
+                -1
+            }
         }
     }
 
@@ -336,10 +352,7 @@ class Game {
  * Card object
  */
 @Serializable
-class Card(suit: String, card: String) {
-    val suit: String = suit
-    val card: String = card
-
+class Card(val suit: String, val card: String) {
     fun suitedCompareTo(suit: String, b: Card): Int {
         var cardA = this.card
         var cardB = b.card
