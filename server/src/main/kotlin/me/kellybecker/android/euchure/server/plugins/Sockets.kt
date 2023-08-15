@@ -27,7 +27,47 @@ import kotlin.collections.mutableListOf
 import kotlin.collections.mutableMapOf
 import kotlin.collections.set
 
-val connections: MutableMap<String, MutableList<suspend (Frame) -> Unit>> = mutableMapOf()
+val connections: SocketPool = SocketPool()
+
+class SocketPool: MutableMap<String, MutableList<suspend (Frame) -> Unit>> by mutableMapOf() {
+    fun removeFromRoom(
+        room: String?,
+        lmbda: suspend (Frame) -> Unit,
+        msg: String = "Unhooking lambda function"
+    ) {
+        if(room == null) return
+
+        if(this.containsKey(room)) {
+            if(this[room]!!.contains(lmbda)) {
+                println(msg)
+                this[room]!!.remove(lmbda)
+
+                if (this[room]!!.size < 1) {
+                    println("Removing unused room: \"$room\"")
+                    this.remove(room)
+                }
+            }
+        }
+    }
+
+    fun addToRoom(room: String?, lmbda: suspend (Frame) -> Unit) {
+        if(room == null) return
+
+        if(!this.containsKey(room)) {
+            println("Created a new room")
+            this[room] = mutableListOf()
+        }
+        println("Joining room: \"$room\"")
+        this[room]!!.add(lmbda)
+    }
+
+    fun numRooms(): Int = this.size
+    fun numConnections(): Int = this.map{ it.value.size }.sum()
+    fun numConnectionsInRoom(room: String?): Int {
+        if(room == null || !this.containsKey(room)) return 0
+        return this[room]!!.size
+    }
+}
 
 fun Application.configureSockets() {
     install(WebSockets) {
@@ -42,8 +82,8 @@ fun Application.configureSockets() {
             var roomID: String? = null
 
             println("\n\n[SERVER:$roomID] Client Connected\n")
-            println("\tRooms: ${connections.size}")
-            println("\tConnections: ${connections.map{ it.value.size }.sum()}")
+            println("\tRooms: ${connections.numRooms()}")
+            println("\tConnections: ${connections.numConnections()}")
             println("\nConnection Object Dump\n${connections.toString()}\n")
 
             try {
@@ -58,45 +98,27 @@ fun Application.configureSockets() {
 
                         // Assign a room and ensure enrollment
                         if(roomID != _roomID) {
-                            if(connections.containsKey(roomID)) {
-                                println("Leaving old room...")
-                                connections[roomID]!!.remove(lmbda)
-
-                                if(connections[roomID]!!.size < 1) {
-                                    println("Removing unused room \"${roomID}\"")
-                                    connections.remove(roomID)
-                                }
-                            }
+                            connections.removeFromRoom(roomID, lmbda, "Leaving old room...")
                             println("Changing room...")
                             roomID = "${_roomID}"
 
-                            if(!connections.containsKey(roomID)) {
-                                println("Created a new room")
-                                connections[roomID] = mutableListOf()
-                            }
-                            println("Joining room: \"${roomID}\"")
-                            connections[roomID]!!.add(lmbda)
+                            connections.addToRoom(roomID, lmbda)
                         }
 
                         println("\n\n[Server:$roomID] Incoming: ${jsn.jsonObject}\n")
-                        println("\tRooms: ${connections.size}")
-                        println("\tConnections: ${connections.map{ it.value.size }.sum()}")
+                        println("\tRooms: ${connections.numRooms()}")
+                        println("\tConnections: ${connections.numConnections()}")
                         println("\nConnection Object Dump\n${connections.toString()}\n")
 
                         // Relay the message to the connections
                         if(connections.containsKey(roomID)) {
-                            println("\tPlayers in room: ${connections[roomID]!!.size}")
-
-                            connections[roomID]!!.filter{ it != lmbda }.forEach { send ->
-                                send(Frame.Text(txt))
-                            }
+                            println("\tPlayers in room: \"$roomID\" (${connections.numConnectionsInRoom(roomID)})")
+                            connections[roomID]!!.filter({ it != lmbda }).forEach({ it(Frame.Text(txt)) })
                         }
 
                         // Disconnection
                         if (txt.equals("bye", ignoreCase = true)) {
-                            if(connections.containsKey(roomID)) {
-                                connections[roomID]!!.remove(lmbda)
-                            }
+                            connections.removeFromRoom(roomID, lmbda)
                             close(CloseReason(CloseReason.Codes.NORMAL, "Client said BYE"))
                         }
                     }

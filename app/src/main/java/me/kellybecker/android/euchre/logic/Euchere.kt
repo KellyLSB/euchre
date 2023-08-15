@@ -10,6 +10,8 @@ import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -78,6 +80,7 @@ data class WSData(
     val roomID: String = "",
     val boolean: Boolean = false,
     val string: String = "",
+    val stack: Stack? = null,
     val card: Card = Card("", ""),
 )
 
@@ -88,6 +91,8 @@ class WebSocket {
 
     lateinit var session: DefaultClientWebSocketSession
     lateinit var roomID: String
+
+    val receiverFlow = MutableSharedFlow<WSData>()
 
     suspend fun connect(host: String = "10.0.2.2", port: Int = 8080) {
         session = client.webSocketSession(
@@ -106,7 +111,21 @@ class WebSocket {
                 msg as? Frame.Text ?: continue
                 val txt: String = msg.readText()
                 println("Incoming: $txt")
-                onMsg(Json.decodeFromString<WSData>(txt))
+
+                val obj = Json.decodeFromString<WSData>(txt)
+                receiverFlow.emit(obj)
+                onMsg(obj)
+            }
+        }
+    }
+
+    suspend fun await(fi: WSData): WSData {
+        send(fi.copy(methodID = "@" + fi.methodID))
+
+        while(true) {
+            val it = receiverFlow.first()
+            if(fi.playerID == it.playerID && fi.methodID == it.methodID) {
+                return it
             }
         }
     }
@@ -186,13 +205,49 @@ class Game {
     }
 
     suspend fun phaseCut(checkUser: suspend () -> Boolean) {
-        if(hands[(dealer + 1) % 4].playerType == 0) {
-            if((0..1).random() > 0) {
-                this.cut()
+        Log.d("CUT", "PlayerType: ${hands[(dealer + 1) % 4].playerType}")
+
+        when(hands[(dealer + 1) % 4].playerType) {
+            // AI Turn
+            0 -> {
+                if((0..1).random() > 0) {
+                    this.cut()
+
+                    wsSend(WSData(
+                        playerID = (dealer + 1) % 4,
+                        methodID = "phaseCut",
+                        stack = this.deck.toStack()
+                    ))
+                }
             }
-        } else {
-            if(checkUser()) this.cut()
+            // Local Turn
+            1 -> {
+                if(checkUser()) {
+                    this.cut()
+
+                    wsSend(WSData(
+                        playerID = (dealer + 1) % 4,
+                        methodID = "phaseCut",
+                        stack = this.deck.toStack()
+                    ))
+                }
+            }
+            // Remote Turn
+            else -> {
+                val obj = webSocket.await(WSData(
+                    playerID = (dealer + 1) % 4,
+                    methodID = "phaseCut"
+                ))
+
+                println(obj.toString())
+            }
         }
+
+        // Prepare to deal out the cards
+//        wsSend(WSData(
+//            playerID = (dealer + 1) % 4,
+//            methodID = "phaseCut"
+//        ))
     }
 
     suspend fun phasePickItUp(checkUser: suspend () -> Boolean) {
@@ -462,6 +517,7 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
 /**
  * A stack of cards
  */
+@Serializable
 open class Stack : MutableList<Card> by mutableListOf() {
 
     /**
@@ -539,12 +595,21 @@ open class Stack : MutableList<Card> by mutableListOf() {
     override fun toString(): String {
         return toMutableList().toString()
     }
+
+    open fun fromStack(ni: Stack): Stack {
+        this.removeAll{true}
+        this.addAll(ni.toStack())
+        return this
+    }
+
+    open fun toStack(): Stack {
+        return this
+    }
 }
 
-class Hand(hand: Int) : Stack() {
+class Hand(val hand: Int) : Stack() {
     var playerType: Int = 0
     val tricks: MutableList<Trick> = mutableListOf()
-    val hand: Int = hand
 
     fun pickItUp(kitty: Stack) {
         //@TODO query discard input
@@ -643,6 +708,11 @@ class Hand(hand: Int) : Stack() {
             trick.play(this.hand, perfectGame[0])
         }
     }
+
+    override fun fromStack(ni: Stack): Hand {
+        super.fromStack(ni)
+        return this
+    }
 }
 
 /**
@@ -660,6 +730,11 @@ class Deck : Stack() {
         }
 
         add(Card("T", "T"))
+    }
+
+    override fun fromStack(ni: Stack): Deck {
+        super.fromStack(ni)
+        return this
     }
 }
 

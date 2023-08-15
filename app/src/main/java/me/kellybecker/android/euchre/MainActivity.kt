@@ -99,14 +99,41 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
             gameInstance.wsMessage(it, relayed = true)
         }
 
+        println("Before Flow Collect")
+
+        // I'm the foreigner; receive my play
+        scope.launch {
+            gameInstance.webSocket.receiverFlow.collect {
+                if (it.playerID == idPlayer) {
+                    when (it.methodID) {
+                        "@phaseCut" -> {
+                            showCutDeck = true
+                            gameInstance.wsSend(
+                                it.copy(
+                                    boolean = flowCutDeck.first(),
+                                    methodID = it.methodID.substring(1)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        println("Ready?")
+
         flowReady.first()
 
         gameInstance.shuffle()
+
+        println("Shuffled")
 
         gameInstance.phaseCut {
             showCutDeck = true
             flowCutDeck.first()
         }
+
+        println("Cutted")
 
         gameInstance.deal()
 
