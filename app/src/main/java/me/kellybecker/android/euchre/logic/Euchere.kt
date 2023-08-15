@@ -9,13 +9,17 @@ import io.ktor.http.HttpMethod
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.net.URI
 
 var trump: String = ""
 
@@ -78,6 +82,7 @@ data class WSData(
     val playerID: Int,
     val methodID: String,
     val roomID: String = "",
+    val loopback: Boolean = false,
     val boolean: Boolean = false,
     val string: String = "",
     val stack: Stack? = null,
@@ -90,33 +95,74 @@ class WebSocket {
     }
 
     lateinit var session: DefaultClientWebSocketSession
+    lateinit var receiverJob: Job
     lateinit var roomID: String
+    lateinit var wsURI: URI
 
+    val receiverFunc = mutableListOf<suspend (WSData) -> Unit>()
     val receiverFlow = MutableSharedFlow<WSData>()
 
-    suspend fun connect(host: String = "10.0.2.2", port: Int = 8080) {
-        session = client.webSocketSession(
-            method = HttpMethod.Get,
-            host = host,
-            port = port,
-            path = "/ws"
-        )
+    fun setURI(uri: URI = URI("")) {
+        if(uri.toString() == "") {
+            wsURI = URI("ws://10.0.2.2:8080/ws")
+        } else {
+            wsURI = uri
+        }
+
+        println("Host: ${wsURI.host}")
+        println("Port: ${wsURI.port}")
+        println("Path: ${wsURI.path}")
     }
 
-    suspend fun close() { session.close() }
+    suspend fun connect(uri: URI = URI("")) {
+        setURI(uri)
+        close()
 
-    suspend fun onMessage(onMsg: (WSData) -> Unit) {
-        session.launch {
+        session = client.webSocketSession(
+            method = HttpMethod.Get,
+            host = wsURI.host,
+            port = wsURI.port,
+            path = wsURI.path
+        )
+
+        onReceive {
+            val obj = Json.decodeFromString<WSData>(it)
+            receiverFunc.forEach{ it(obj) }
+            receiverFlow.emit(obj)
+        }
+    }
+
+    private suspend fun onReceive(block: suspend (String) -> Unit) {
+        receiverJob = session.launch {
             for(msg in session.incoming) {
                 msg as? Frame.Text ?: continue
                 val txt: String = msg.readText()
                 println("Incoming: $txt")
-
-                val obj = Json.decodeFromString<WSData>(txt)
-                receiverFlow.emit(obj)
-                onMsg(obj)
+                block(txt)
             }
         }
+    }
+
+    fun isConnected(): Boolean {
+        if(this::session.isInitialized) {
+            return session.isActive
+        }
+
+        return false
+    }
+
+    suspend fun close() {
+        if(this::receiverJob.isInitialized) {
+            receiverJob.cancel(message = "Closed")
+        }
+
+        if(this::session.isInitialized) {
+            session.close()
+        }
+    }
+
+    fun onMessage(onMsg: (WSData) -> Unit) {
+        receiverFunc.add(onMsg)
     }
 
     suspend fun await(fi: WSData): WSData {
@@ -132,7 +178,9 @@ class WebSocket {
 
     suspend fun send(msg: WSData) {
         val txt: String = Json.encodeToString(msg.copy(
-            roomID = roomID
+            roomID = roomID,
+            //debugger
+            loopback = true,
         ))
 
         println("Outgoing: $txt")
@@ -381,7 +429,7 @@ class Game {
             // Configure game to accept input from where...
             "aiOverride" -> hands[data.playerID].playerType = if(!relayed) {
                 if(data.boolean) { 1 } else { 0 }
-                Log.d("WS", data.boolean.toString())
+                Log.d("WS", "Local User (false is AI): ${data.boolean.toString()}")
             } else {
                 Log.d("WS", "Remote Player")
                 -1

@@ -113,7 +113,10 @@ fun Application.configureSockets() {
                         // Relay the message to the connections
                         if(connections.containsKey(roomID)) {
                             println("\tPlayers in room: \"$roomID\" (${connections.numConnectionsInRoom(roomID)})")
-                            connections[roomID]!!.filter({ it != lmbda }).forEach({ it(Frame.Text(txt)) })
+                            connections[roomID]!!.filter{
+                                if(jsn.jsonObject["loopback"].toString() == "true") { true }
+                                else { it != lmbda }
+                            }.forEach({ it(Frame.Text(txt)) })
                         }
 
                         // Disconnection

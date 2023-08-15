@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,11 +43,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import me.kellybecker.android.euchre.logic.Card
 import me.kellybecker.android.euchre.logic.Game
 import me.kellybecker.android.euchre.logic.WSData
 import me.kellybecker.android.euchre.ui.theme.EuchreTheme
+import java.net.URI
 
 class MainActivity : ComponentActivity() {
     val gameInstance: Game = Game()
@@ -73,6 +76,7 @@ class MainActivity : ComponentActivity() {
 fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
 
     // WebSockets / Select my Hand
+    var wsURI by remember { mutableStateOf("ws://10.0.2.2:8080/ws") }
     var idRoom by remember { mutableStateOf("Room") }
     var idPlayer by remember { mutableStateOf(1) }
     var showReady by remember { mutableStateOf(true) }
@@ -91,7 +95,6 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
     val flowYourTurn =  remember { MutableSharedFlow<Card>()  }
 
     LaunchedEffect(Unit) {
-        gameInstance.webSocket.connect()
         gameInstance.webSocket.roomID = idRoom
 
         gameInstance.webSocket.onMessage {
@@ -193,13 +196,27 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                 if(showReady) {
                     TopAppBar(
                         title = {
-                            BasicTextField(
-                                value = idRoom,
-                                onValueChange = { r: String ->
-                                    gameInstance.webSocket.roomID = r
-                                    idRoom = r
-                                }
-                            )
+                            Column {
+                                BasicTextField(
+                                    value = wsURI,
+                                    textStyle = LocalTextStyle.current.copy(
+                                        fontSize = MaterialTheme.typography.labelSmall.fontSize,
+                                        color = if (gameInstance.webSocket.isConnected()) {
+                                            Color.Green
+                                        } else {
+                                            Color.Red
+                                        }
+                                    ),
+                                    onValueChange = { u: String -> wsURI = u }
+                                )
+                                BasicTextField(
+                                    value = idRoom,
+                                    onValueChange = { r: String ->
+                                        gameInstance.webSocket.roomID = r
+                                        idRoom = r
+                                    }
+                                )
+                            }
                         },
                         actions = {
                             Button(
@@ -278,10 +295,17 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                             }
                         }
                     )
-                    Button(onClick = {
-                        scope.launch { showReady = false; flowReady.emit(true) }
-                    }) {
-                        Text("Ready")
+                    Row {
+                        Button(onClick = {
+                            scope.launch { showReady = false; flowReady.emit(true) }
+                        }) {
+                            Text("Ready")
+                        }
+                        Button(onClick = {
+                            scope.launch { gameInstance.webSocket.connect(URI(wsURI)) }
+                        }) {
+                            Text("Connect")
+                        }
                     }
                 } else {
                     CardTable(
