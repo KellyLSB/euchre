@@ -19,14 +19,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import java.time.Duration
-import kotlin.collections.MutableList
-import kotlin.collections.MutableMap
 import kotlin.collections.containsKey
-import kotlin.collections.filter
-import kotlin.collections.forEach
 import kotlin.collections.get
-import kotlin.collections.mutableListOf
-import kotlin.collections.mutableMapOf
 import kotlin.collections.set
 
 val connections: SocketPool = SocketPool()
@@ -116,34 +110,30 @@ fun Application.configureSockets() {
                                 if(jsn.jsonObject["loopback"].toString() == "true") { true }
                                 else { it != this }
                             }.forEach {
+                                println("Connection Active: ${it.isActive}")
                                 if(it.isActive) it.outgoing.send(Frame.Text(txt))
+                                else connections.removeFromRoom(roomID, it, "isn't active")
                             }
                         }
 
                         // Disconnection
                         if (txt.equals("bye", ignoreCase = true)) {
-                            connections.removeFromRoom(roomID, this)
+                            connections.removeFromRoom(roomID, this, "Bye")
                             close(CloseReason(CloseReason.Codes.NORMAL, "Client said BYE"))
                         }
                     }
                 }
             } catch(e: ClosedSendChannelException) {
                 println("[SERVER:$roomID] Send Channel Closed\n\t\"${e.toString()}\"")
-                if(connections.containsKey(roomID)) {
-                    connections[roomID]!!.remove(this)
-                }
+                connections.removeFromRoom(roomID, this, "ClosedSendChannelException")
                 closeExceptionally(e)
             } catch(e: ClosedReceiveChannelException) {
                 println("[SERVER:$roomID] Receive Channel Closed\n\t\"${e.toString()}\"")
-                if(connections.containsKey(roomID)) {
-                    connections[roomID]!!.remove(this)
-                }
+                connections.removeFromRoom(roomID, this, "ClosedReceiveChannelException")
                 closeExceptionally(e)
             } catch(e: Throwable) {
                 println("[SERVER:$roomID] Error\n\t\"${e.toString()}\"\t${e.stackTraceToString()}")
-                if(connections.containsKey(roomID)) {
-                    connections[roomID]!!.remove(this)
-                }
+                connections.removeFromRoom(roomID, this, "Throwable")
                 closeExceptionally(e)
             }
         }

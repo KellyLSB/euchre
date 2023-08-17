@@ -132,6 +132,9 @@ class WebSocket {
             path = wsURI.path
         )
 
+        // Register room with the server by sending #connect
+        send(WSData(playerID = 0, methodID = "#connect"))
+
         onReceive {
             Log.d("WS_RECEIVER", receiverFunc.toString())
             val obj = Json.decodeFromString<WSData>(it)
