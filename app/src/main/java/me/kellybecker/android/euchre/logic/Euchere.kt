@@ -16,9 +16,16 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encodeToString
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonContentPolymorphicSerializer
+import kotlinx.serialization.json.JsonElement
 import java.net.URI
 
 var trump: String = ""
@@ -85,7 +92,7 @@ data class WSData(
     val loopback: Boolean = false,
     var boolean: Boolean = false,
     var string: String = "",
-    var stack: Stack? = null,
+    var stack: Stack = Stack(),
     var card: Card = Card("", ""),
 )
 
@@ -126,7 +133,9 @@ class WebSocket {
         )
 
         onReceive {
+            Log.d("WS_RECEIVER", receiverFunc.toString())
             val obj = Json.decodeFromString<WSData>(it)
+            Log.d("WS_RECEIVER", "Object:\n\t$obj")
             receiverFunc.forEach{ it(obj) }
             receiverFlow.emit(obj)
         }
@@ -137,7 +146,7 @@ class WebSocket {
             for(msg in session.incoming) {
                 msg as? Frame.Text ?: continue
                 val txt: String = msg.readText()
-                println("Incoming: $txt")
+                Log.d("WS_RECEIVE", "Incoming: $txt")
                 block(txt)
             }
         }
@@ -179,12 +188,11 @@ class WebSocket {
         }
     }
 
-    suspend fun send(msg: WSData) {
-        val txt: String = Json.encodeToString(msg.copy(
-            roomID = roomID,
-        ))
+    suspend fun send(obj: WSData) {
+        Log.d("WS_SEND", "Object: $obj")
+        val txt = Json.encodeToString(obj.copy(roomID = roomID))
+        Log.d("WS_SEND", "Message: $txt")
 
-        println("Outgoing: $txt")
         if(this::session.isInitialized) {
             session.send(Frame.Text(txt))
         }
@@ -259,14 +267,14 @@ class Game {
         if(obj.boolean) {
             this.cut()
             obj.stack = this.deck.toStack()
-            Log.d("EUCHRE_CUT", "$msg: ${this.deck.toStack()}")
+            Log.d("EUCHRE_CUT", "$msg: ${obj}")
         }
 
         return obj
     }
 
     suspend fun phaseCut(checkUser: suspend () -> Boolean) {
-        var obj = WSData(
+        val obj = WSData(
             playerID = (dealer + 1) % 4,
             methodID = "phaseCut",
         )
@@ -552,10 +560,29 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
     }
 }
 
+object CardSerializer : JsonContentPolymorphicSerializer<Card>(Card::class) {
+    override fun selectDeserializer(element: JsonElement) = Card.serializer()
+}
+
+object StackSerializer : KSerializer<List<Card>> {
+    private val builtIn: KSerializer<List<Card>> = ListSerializer(CardSerializer)
+
+    override fun deserialize(decoder: Decoder): List<Card> {
+        return builtIn.deserialize(decoder)
+    }
+
+    override val descriptor: SerialDescriptor = builtIn.descriptor
+
+    override fun serialize(encoder: Encoder, value: List<Card>) {
+        builtIn.serialize(encoder, value)
+    }
+
+}
+
 /**
  * A stack of cards
  */
-@Serializable
+@Serializable(with = StackSerializer::class)
 open class Stack : MutableList<Card> by mutableListOf() {
 
     /**

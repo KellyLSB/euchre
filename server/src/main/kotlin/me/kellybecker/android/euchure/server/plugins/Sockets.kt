@@ -85,7 +85,6 @@ fun Application.configureSockets() {
             println("\n\n[SERVER:$roomID] Client Connected\n")
             println("\tRooms: ${connections.numRooms()}")
             println("\tConnections: ${connections.numConnections()}")
-            println("\nConnection Object Dump\n${connections.toString()}\n")
 
             try {
                 for (frame in incoming) {
@@ -106,10 +105,9 @@ fun Application.configureSockets() {
                             connections.addToRoom(roomID, this)
                         }
 
-                        println("\n\n[Server:$roomID] Incoming: ${jsn.jsonObject}\n")
+                        println("\n\n[Server:$roomID] Incoming:\n\t${jsn.jsonObject}\n")
                         println("\tRooms: ${connections.numRooms()}")
                         println("\tConnections: ${connections.numConnections()}")
-                        println("\nConnection Object Dump\n${connections.toString()}\n")
 
                         // Relay the message to the connections
                         if(connections.containsKey(roomID)) {
@@ -119,7 +117,6 @@ fun Application.configureSockets() {
                                 else { it != this }
                             }.forEach {
                                 if(it.isActive) it.outgoing.send(Frame.Text(txt))
-                                else connections[roomID]!!.remove(it)
                             }
                         }
 
