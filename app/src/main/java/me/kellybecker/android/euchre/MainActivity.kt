@@ -111,12 +111,11 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                     when (it.methodID) {
                         "@phaseCut" -> {
                             showCutDeck = true
-                            gameInstance.wsSend(
-                                it.copy(
-                                    boolean = flowCutDeck.first(),
-                                    methodID = it.methodID.substring(1)
-                                )
-                            )
+
+                            gameInstance.wsSend(gameInstance._phaseCut(it.copy(
+                                methodID = it.methodID.substring(1),
+                                boolean  = flowCutDeck.first(),
+                            )))
                         }
                     }
                 }
@@ -201,7 +200,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                     value = wsURI,
                                     textStyle = LocalTextStyle.current.copy(
                                         fontSize = MaterialTheme.typography.labelSmall.fontSize,
-                                        color = if (gameInstance.webSocket.isConnected()) {
+                                        color = if(gameInstance.webSocket.isConnected()) {
                                             Color.Green
                                         } else {
                                             Color.Red
@@ -230,17 +229,11 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                 onClick = {
                                     idPlayer = 0
 
-                                    scope.launch {
-                                        gameInstance.wsSend(
-                                            WSData(
-                                                playerID = idPlayer,
-                                                methodID = "aiOverride",
-                                                boolean = true,
-                                            )
-                                        )
-                                    }
-
-
+                                    scope.launch{ gameInstance.wsSend(WSData(
+                                        playerID = idPlayer,
+                                        methodID = "aiOverride",
+                                        boolean = true,
+                                    )) }
                                 },
                             ) {
                                 Text("0")
@@ -254,9 +247,12 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                     }
                                 ), onClick = {
                                     idPlayer = 1
-                                    gameInstance.hands.forEachIndexed { index, hand ->
-                                        hand.playerType = if(1 % 4 != index) { 0 } else { 1 }
-                                    }
+
+                                    scope.launch{ gameInstance.wsSend(WSData(
+                                        playerID = idPlayer,
+                                        methodID = "aiOverride",
+                                        boolean = true,
+                                    )) }
                                 }
                             ) {
                                 Text("1")
@@ -270,9 +266,12 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                     }
                                 ), onClick = {
                                     idPlayer = 2
-                                    gameInstance.hands.forEachIndexed { index, hand ->
-                                        hand.playerType = if(2 % 4 != index) { 0 } else { 1 }
-                                    }
+
+                                    scope.launch{ gameInstance.wsSend(WSData(
+                                        playerID = idPlayer,
+                                        methodID = "aiOverride",
+                                        boolean = true,
+                                    )) }
                                 }
                             ) {
                                 Text("2")
@@ -286,9 +285,12 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                     }
                                 ), onClick = {
                                     idPlayer = 3
-                                    gameInstance.hands.forEachIndexed { index, hand ->
-                                        hand.playerType = if(3 % 4 != index) { 0 } else { 1 }
-                                    }
+
+                                    scope.launch{ gameInstance.wsSend(WSData(
+                                        playerID = idPlayer,
+                                        methodID = "aiOverride",
+                                        boolean = true,
+                                    )) }
                                 }
                             ) {
                                 Text("3")
@@ -305,6 +307,14 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                             scope.launch { gameInstance.webSocket.connect(URI(wsURI)) }
                         }) {
                             Text("Connect")
+                        }
+                    }
+                    Row {
+                        Button(onClick = { wsURI = "ws://192.168.1.181:8080/ws" }) {
+                            Text("192.168.1.181")
+                        }
+                        Button(onClick = { wsURI = "ws://10.0.2.2:8080/ws" }) {
+                            Text("10.0.2.2")
                         }
                     }
                 } else {

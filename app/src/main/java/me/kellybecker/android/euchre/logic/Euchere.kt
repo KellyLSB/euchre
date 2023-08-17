@@ -83,10 +83,10 @@ data class WSData(
     val methodID: String,
     val roomID: String = "",
     val loopback: Boolean = false,
-    val boolean: Boolean = false,
-    val string: String = "",
-    val stack: Stack? = null,
-    val card: Card = Card("", ""),
+    var boolean: Boolean = false,
+    var string: String = "",
+    var stack: Stack? = null,
+    var card: Card = Card("", ""),
 )
 
 class WebSocket {
@@ -169,7 +169,10 @@ class WebSocket {
         send(fi.copy(methodID = "@" + fi.methodID))
 
         while(true) {
+            Log.d("WS_AWAIT", "Waiting for response...")
+
             val it = receiverFlow.first()
+            Log.d("WS_AWAIT", "Response: $it")
             if(fi.playerID == it.playerID && fi.methodID == it.methodID) {
                 return it
             }
@@ -179,12 +182,12 @@ class WebSocket {
     suspend fun send(msg: WSData) {
         val txt: String = Json.encodeToString(msg.copy(
             roomID = roomID,
-            //debugger
-            loopback = true,
         ))
 
         println("Outgoing: $txt")
-        session.send(Frame.Text(txt))
+        if(this::session.isInitialized) {
+            session.send(Frame.Text(txt))
+        }
     }
 }
 
@@ -252,50 +255,36 @@ class Game {
         }
     }
 
+    fun _phaseCut(obj: WSData, msg: String = "CutDeck"): WSData {
+        if(obj.boolean) {
+            this.cut()
+            obj.stack = this.deck.toStack()
+            Log.d("EUCHRE_CUT", "$msg: ${this.deck.toStack()}")
+        }
+
+        return obj
+    }
+
     suspend fun phaseCut(checkUser: suspend () -> Boolean) {
+        var obj = WSData(
+            playerID = (dealer + 1) % 4,
+            methodID = "phaseCut",
+        )
+
         Log.d("CUT", "PlayerType: ${hands[(dealer + 1) % 4].playerType}")
 
         when(hands[(dealer + 1) % 4].playerType) {
             // AI Turn
-            0 -> {
-                if((0..1).random() > 0) {
-                    this.cut()
-
-                    wsSend(WSData(
-                        playerID = (dealer + 1) % 4,
-                        methodID = "phaseCut",
-                        stack = this.deck.toStack()
-                    ))
-                }
-            }
+            0 -> wsSend(_phaseCut(obj.copy(boolean = (0..1).random() > 0)))
             // Local Turn
-            1 -> {
-                if(checkUser()) {
-                    this.cut()
-
-                    wsSend(WSData(
-                        playerID = (dealer + 1) % 4,
-                        methodID = "phaseCut",
-                        stack = this.deck.toStack()
-                    ))
-                }
-            }
+            1 -> wsSend(_phaseCut(obj.copy(boolean = checkUser())))
             // Remote Turn
             else -> {
-                val obj = webSocket.await(WSData(
-                    playerID = (dealer + 1) % 4,
-                    methodID = "phaseCut"
-                ))
+                val obj = webSocket.await(obj)
 
-                println(obj.toString())
+                Log.d("EUCHRE_CUT", "Remote Cut; WSData: ${obj}")
             }
         }
-
-        // Prepare to deal out the cards
-//        wsSend(WSData(
-//            playerID = (dealer + 1) % 4,
-//            methodID = "phaseCut"
-//        ))
     }
 
     suspend fun phasePickItUp(checkUser: suspend () -> Boolean) {
@@ -307,8 +296,9 @@ class Game {
                     Log.d("EUCHRE", "AI: Should pick it up $check")
                     check
                 } else {
-                    Log.d("EUCHRE", "USER: Should pick it up: $checkUser")
-                    checkUser()
+                    val check = checkUser()
+                    Log.d("EUCHRE", "USER: Should pick it up: $check")
+                    check
                 }
             ) {
                 if(kitty[0].suit != "T") {
