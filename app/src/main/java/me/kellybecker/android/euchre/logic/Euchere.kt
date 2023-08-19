@@ -358,6 +358,14 @@ class Card(suit: String, card: String) {
         return suitedCompareTo("", b)
     }
 
+    override operator fun equals(other: Any?): Boolean {
+        return if(other is Card) {
+            this.toString() == other.toString()
+        } else {
+            super.equals(other)
+        }
+    }
+
     override fun toString(): String {
         return "${this.suit}${this.card}"
     }
@@ -416,9 +424,9 @@ open class Stack : MutableList<Card> by mutableListOf() {
     /**
      * Cut the stack of cards by a random amount
      */
-    fun cut() {
+    fun cut(cutFunc: (Int) -> Int = { ((it-3)..(it+2)).random() }) {
         val middle = size / 2
-        val cutPnt = ((middle-3)..(middle+2)).random()
+        val cutPnt = cutFunc(middle)
         val newList = listOf(
             subList(0, cutPnt), subList(cutPnt, size),
         ).reversed().flatten()
@@ -465,11 +473,12 @@ open class Stack : MutableList<Card> by mutableListOf() {
         return tmp
     }
     fun shuffleCards() {
-        when((0..4).random()) {
+        when((0..5).random()) {
             0 -> shuffleA(2, 3)
             1 -> shuffleA(2, 2)
             2 -> shuffleA(2, 2)
             3 -> shuffleA(3, 1)
+            4 -> shuffleA(2, (1..3).random())
             else -> shuffle()
         }
     }
