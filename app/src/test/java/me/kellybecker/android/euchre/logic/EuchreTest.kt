@@ -134,6 +134,7 @@ class EuchreTest {
         //gameInstance.cut()
         gameInstance.deal()
 
+
         // Ensure trump was set by the pick it up phase
         val kittyCard = gameInstance.kitty.first()
         runBlocking {
@@ -141,5 +142,40 @@ class EuchreTest {
         }
         assertEquals(trump, "♠")
         assert(kittyCard in gameInstance.hands[0])
+        // Phase Select Trump Skipped by Pick it up
+
+
+        // Player 0 is going to go alone
+        assertEquals(-1, gameInstance.goingAlone)
+        runBlocking {
+            gameInstance.phaseGoAlone { /*never reached*/ false }
+        }
+        assertEquals(0, gameInstance.goingAlone)
+
+
+        // Play phase
+        runBlocking {
+            gameInstance.phasePlay { /*never reached*/ Card("", "") }
+        }
+        //
+        assertEquals(Card("♠", "Q"), gameInstance.hands[0].tricks[0].get(1))
+        assertEquals(Card("♠", "K"), gameInstance.hands[0].tricks[0].get(3))
+        //assertEquals(Card("♣", "J"), gameInstance.hands[0].tricks[0].get(0))
+        //
+        assertEquals(Card("♣", "10"), gameInstance.hands[0].tricks[1].get(1))
+        assertEquals(Card("♦", "10"), gameInstance.hands[0].tricks[1].get(3))
+        assertEquals(Card("♠", "9"), gameInstance.hands[0].tricks[1].get(0))
+        //
+        assertEquals(Card("♦", "9"), gameInstance.hands[0].tricks[2].get(1))
+        assertEquals(Card("♦", "A"), gameInstance.hands[0].tricks[2].get(3))
+        //assertEquals(Card("♠", "10"), gameInstance.hands[0].tricks[2].get(0))
+        //
+        assertEquals(Card("♣", "A"), gameInstance.hands[1].tricks[0].get(1))
+        assertEquals(Card("♥", "9"), gameInstance.hands[1].tricks[0].get(3))
+        assertEquals(Card("♥", "Q"), gameInstance.hands[1].tricks[0].get(0))
+        //
+        assertEquals(Card("♥", "A"), gameInstance.hands[1].tricks[1].get(1))
+        assertEquals(Card("♥", "K"), gameInstance.hands[1].tricks[1].get(3))
+        assertEquals(Card("♦", "K"), gameInstance.hands[1].tricks[1].get(0))
     }
 }
