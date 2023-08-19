@@ -295,8 +295,8 @@ class Game {
         dealer = 0
     }
 
-    fun whoseTurn(): Int {
-        return (dealer + turn) % 4
+    fun whoseTurn(offset: Int = 1): Int {
+        return (dealer + turn + offset) % 4
     }
 
     override fun toString(): String {

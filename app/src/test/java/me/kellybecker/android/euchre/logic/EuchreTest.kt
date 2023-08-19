@@ -1,5 +1,6 @@
 package me.kellybecker.android.euchre.logic
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 
 import org.junit.Assert.*
@@ -16,6 +17,52 @@ class EuchreTest {
     fun addition_isCorrect() {
         assertEquals(4, 2 + 2)
     }
+
+    @Test
+    fun shuffleA() {
+        gameInstance.deck.shuffleA(2, 2)
+        assertArrayEquals(arrayOf(
+            Card("♠", "A"),
+            Card("♠","10"),
+            Card("♥","Q"),
+            Card("♣", "A"),
+            Card("♣","10"),
+            Card("♦", "Q"),
+            Card("T", "T"),
+            Card("♠", "J"),
+            Card("♥", "K"),
+            Card("♥", "9"),
+            Card("♣", "J"),
+            Card("♦", "K"),
+            Card("♦", "9"),
+            Card("♠", "Q"),
+            Card("♥", "A"),
+            Card("♥", "10"),
+            Card("♣", "Q"),
+            Card("♦", "A"),
+            Card("♦", "10"),
+            Card("♠", "K"),
+            Card("♠", "9"),
+            Card("♥", "J"),
+            Card("♣", "K"),
+            Card("♣", "9"),
+            Card("♦", "J")
+        ), gameInstance.deck.toTypedArray())
+    }
+
+    @Test
+    fun cut() {
+        val middle = gameInstance.deck.size / 2
+        val list = listOf(
+            gameInstance.deck.subList(0, middle),
+            gameInstance.deck.subList(middle, gameInstance.deck.size)
+        ).reversed().flatten().toTypedArray()
+
+        // Cut the deck perfectly down the middle
+        gameInstance.deck.cut{it}
+        assertArrayEquals(list, gameInstance.deck.toTypedArray())
+    }
+
 
     @Test
     // Ensure deal provides the correct number of cards
@@ -82,21 +129,17 @@ class EuchreTest {
     }
 
     @Test
-    fun cut() {
-        val middle = gameInstance.deck.size / 2
-        val list = listOf(
-            gameInstance.deck.subList(0, middle),
-            gameInstance.deck.subList(middle, gameInstance.deck.size)
-        ).reversed().flatten().toTypedArray()
-
-        // Cut the deck perfectly down the middle
-        gameInstance.deck.cut{it}
-        assertArrayEquals(list, gameInstance.deck.toTypedArray())
-    }
-
-    @Test
-    fun shuffleA() {
+    fun playthrough1() {
         gameInstance.deck.shuffleA(2, 2)
-        assertEquals("[♠A, ♠10, ♥Q, ♣A, ♣10, ♦Q, TT, ♠J, ♥K, ♥9, ♣J, ♦K, ♦9, ♠Q, ♥A, ♥10, ♣Q, ♦A, ♦10, ♠K, ♠9, ♥J, ♣K, ♣9, ♦J]", gameInstance.deck.toString())
+        //gameInstance.cut()
+        gameInstance.deal()
+
+        // Ensure trump was set by the pick it up phase
+        val kittyCard = gameInstance.kitty.first()
+        runBlocking {
+            gameInstance.phasePickItUp { /*never reached*/ false }
+        }
+        assertEquals(trump, "♠")
+        assert(kittyCard in gameInstance.hands[0])
     }
 }
