@@ -17,52 +17,95 @@ import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.isActive
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import java.time.Duration
-import kotlin.collections.containsKey
-import kotlin.collections.get
-import kotlin.collections.set
 
 val connections: SocketPool = SocketPool()
 
-class SocketPool: MutableMap<String, MutableList<DefaultWebSocketServerSession>> by mutableMapOf() {
-    fun removeFromRoom(
-        room: String?,
-        session: DefaultWebSocketServerSession,
-        msg: String = "Unhooking lambda function"
-    ) {
-        if(room == null) return
-
-        if(this.containsKey(room)) {
-            if(this[room]!!.contains(session)) {
-                println(msg)
-                this[room]!!.remove(session)
-
-                if (this[room]!!.size < 1) {
-                    println("Removing unused room: \"$room\"")
-                    this.remove(room)
-                }
+class SocketConnection(
+    var roomID: String?,
+    val session: DefaultWebSocketServerSession
+) {
+    suspend fun forIncoming(func: suspend (txt: String) -> Unit) {
+        for(frame in session.incoming) {
+            if(frame is Frame.Text) {
+                val txt = frame.readText()
+                println("[Server:$roomID] Incoming (Raw):\n\t$txt")
+                func(txt)
             }
         }
     }
 
-    fun addToRoom(room: String?, session: DefaultWebSocketServerSession) {
-        if(room == null) return
+    suspend fun forIncoming(func: suspend (txt: String, jsn: JsonElement) -> Unit) {
+        forIncoming { txt: String ->
+            val jsn = Json.parseToJsonElement(txt)
 
-        if(!this.containsKey(room)) {
-            println("Created a new room")
-            this[room] = mutableListOf()
+            // Update Room ID
+            roomID = jsn.jsonObject["roomID"].toString().substring(
+                1, jsn.jsonObject["roomID"].toString().length - 1
+            )
+
+            println("\n\n[Server:$roomID] Incoming:\n\t${jsn.jsonObject}\n")
+            func(txt, jsn)
         }
-        println("Joining room: \"$room\"")
-        this[room]!!.add(session)
+    }
+}
+
+class SocketPool: MutableList<SocketConnection> by mutableListOf() {
+    fun addToRoom(roomID: String?, session: DefaultWebSocketServerSession) {
+        val socket = selectSession(session)
+
+        if(socket != null) {
+            socket.roomID = roomID
+        } else {
+            add(SocketConnection(roomID, session))
+        }
     }
 
-    fun numRooms(): Int = this.size
-    fun numConnections(): Int = this.map{ it.value.size }.sum()
-    fun numConnectionsInRoom(room: String?): Int {
-        if(room == null || !this.containsKey(room)) return 0
-        return this[room]!!.size
+    fun removeFromRoom(session: DefaultWebSocketServerSession) {
+        val socket = selectSession(session)
+
+        if(socket != null) {
+            socket.roomID = null
+        }
     }
+
+    suspend fun selectRoom(roomID: String?, func: suspend (SocketConnection) -> Unit) {
+        this.filter{ it.session.isActive }
+            .filter{ it.roomID == roomID }
+            .forEach { func(it) }
+    }
+
+    fun selectSession(session: DefaultWebSocketServerSession): SocketConnection? {
+        return this.find { it.session == session }
+    }
+
+    suspend fun close(session: DefaultWebSocketServerSession) {
+        val socket = selectSession(session)
+
+        if(socket != null) {
+            remove(socket)
+
+            socket.session.close(CloseReason(
+                CloseReason.Codes.NORMAL,
+                "Closed by SocketPool"
+            ))
+        }
+    }
+
+    suspend fun close(session: DefaultWebSocketServerSession, e: Throwable) {
+        val socket = selectSession(session)
+
+        if(socket != null) {
+            remove(socket)
+            socket.session.closeExceptionally(e)
+        }
+    }
+
+    fun numConnections(): Int = this.size
+    fun numRooms(): Int = this.map{ it.roomID }.distinct().size
+    fun numConnectionsInRoom(roomID: String?): Int = this.filter{ it.roomID == roomID }.size
 }
 
 fun Application.configureSockets() {
@@ -74,67 +117,38 @@ fun Application.configureSockets() {
     }
     routing {
         webSocket("/ws") { // websocketSession
-            var roomID: String? = null
+            connections.addToRoom(null, this)
 
-            println("\n\n[SERVER:$roomID] Client Connected\n")
+            println("\n\n[SERVER] Client Connected\n")
             println("\tRooms: ${connections.numRooms()}")
             println("\tConnections: ${connections.numConnections()}")
 
             try {
-                for (frame in incoming) {
-                    if (frame is Frame.Text) {
-                        val txt = frame.readText()
-                        println("[Server:$roomID] Incoming (Raw):\n\t$txt")
-                        val jsn = Json.parseToJsonElement(txt)
-                        val _roomID = jsn.jsonObject["roomID"].toString().substring(
-                            1, jsn.jsonObject["roomID"].toString().length - 1
-                        )
+                val session = connections.selectSession(this)
 
-                        // Assign a room and ensure enrollment
-                        if(roomID != _roomID) {
-                            connections.removeFromRoom(roomID, this, "Leaving old room...")
-                            println("Changing room...")
-                            roomID = "${_roomID}"
+                session!!.forIncoming { txt: String, jsn: JsonElement ->
+                    println("\tRooms: ${connections.numRooms()}")
+                    println("\tConnections: ${connections.numConnections()}")
 
-                            connections.addToRoom(roomID, this)
+                    connections.selectRoom(session.roomID) {
+                        if(session != it || jsn.jsonObject["loopback"].toString() == "true") {
+                             it.session.outgoing.send(Frame.Text(txt))
                         }
+                    }
 
-                        println("\n\n[Server:$roomID] Incoming:\n\t${jsn.jsonObject}\n")
-                        println("\tRooms: ${connections.numRooms()}")
-                        println("\tConnections: ${connections.numConnections()}")
-
-                        // Relay the message to the connections
-                        if(connections.containsKey(roomID)) {
-                            println("\tPlayers in room: \"$roomID\" (${connections.numConnectionsInRoom(roomID)})")
-                            connections[roomID]!!.filter {
-                                if(jsn.jsonObject["loopback"].toString() == "true") { true }
-                                else { it != this }
-                            }.forEach {
-                                println("Connection Active: ${it.isActive}")
-                                if(it.isActive) it.outgoing.send(Frame.Text(txt))
-                                else connections.removeFromRoom(roomID, it, "isn't active")
-                            }
-                        }
-
-                        // Disconnection
-                        if (txt.equals("bye", ignoreCase = true)) {
-                            connections.removeFromRoom(roomID, this, "Bye")
-                            close(CloseReason(CloseReason.Codes.NORMAL, "Client said BYE"))
-                        }
+                    if (txt.equals("bye", ignoreCase = true)) {
+                        connections.close(this)
                     }
                 }
             } catch(e: ClosedSendChannelException) {
-                println("[SERVER:$roomID] Send Channel Closed\n\t\"${e.toString()}\"")
-                connections.removeFromRoom(roomID, this, "ClosedSendChannelException")
-                closeExceptionally(e)
+                connections.close(this, e)
+                println("[SERVER] Send Channel Closed\n\t\"${e.toString()}\"")
             } catch(e: ClosedReceiveChannelException) {
-                println("[SERVER:$roomID] Receive Channel Closed\n\t\"${e.toString()}\"")
-                connections.removeFromRoom(roomID, this, "ClosedReceiveChannelException")
-                closeExceptionally(e)
+                connections.close(this, e)
+                println("[SERVER] Receive Channel Closed\n\t\"${e.toString()}\"")
             } catch(e: Throwable) {
-                println("[SERVER:$roomID] Error\n\t\"${e.toString()}\"\t${e.stackTraceToString()}")
-                connections.removeFromRoom(roomID, this, "Throwable")
-                closeExceptionally(e)
+                connections.close(this, e)
+                println("[SERVER] Error\n\t\"${e.toString()}\"\t${e.stackTraceToString()}")
             }
         }
     }
