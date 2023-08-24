@@ -50,6 +50,8 @@ class SocketConnection(
             func(txt, jsn)
         }
     }
+
+    suspend fun close() = connections.close(this)
 }
 
 class SocketPool: MutableList<SocketConnection> by mutableListOf() {
@@ -81,9 +83,7 @@ class SocketPool: MutableList<SocketConnection> by mutableListOf() {
         return this.find { it.session == session }
     }
 
-    suspend fun close(session: DefaultWebSocketServerSession) {
-        val socket = selectSession(session)
-
+    suspend fun close(socket: SocketConnection?) {
         if(socket != null) {
             remove(socket)
 
@@ -94,13 +94,19 @@ class SocketPool: MutableList<SocketConnection> by mutableListOf() {
         }
     }
 
-    suspend fun close(session: DefaultWebSocketServerSession, e: Throwable) {
-        val socket = selectSession(session)
+    suspend fun close(session: DefaultWebSocketServerSession) {
+        close(selectSession(session))
+    }
 
+    suspend fun close(socket: SocketConnection?, e: Throwable) {
         if(socket != null) {
             remove(socket)
             socket.session.closeExceptionally(e)
         }
+    }
+
+    suspend fun close(session: DefaultWebSocketServerSession, e: Throwable) {
+        close(selectSession(session), e)
     }
 
     fun numConnections(): Int = this.size
@@ -142,13 +148,13 @@ fun Application.configureSockets() {
                 }
             } catch(e: ClosedSendChannelException) {
                 connections.close(this, e)
-                println("[SERVER] Send Channel Closed\n\t\"${e.toString()}\"")
+                println("[SERVER] Send Channel Closed\n\t\"${e}\"")
             } catch(e: ClosedReceiveChannelException) {
                 connections.close(this, e)
-                println("[SERVER] Receive Channel Closed\n\t\"${e.toString()}\"")
+                println("[SERVER] Receive Channel Closed\n\t\"${e}\"")
             } catch(e: Throwable) {
                 connections.close(this, e)
-                println("[SERVER] Error\n\t\"${e.toString()}\"\t${e.stackTraceToString()}")
+                println("[SERVER] Error\n\t\"${e}\"\t${e.stackTraceToString()}")
             }
         }
     }
