@@ -80,6 +80,7 @@ fun MainActivityContent(gameInstance: Game) {
     val flowYourTurn =  remember { MutableSharedFlow<Card>()  }
 
     LaunchedEffect(Unit) {
+        gameInstance.hands[1].isAI = false
         //gameInstance.webSocket.connect()
         //gameInstance.webSocket.onMessage { Log.d("WS", it) }
         //gameInstance.webSocket.send(Frame.Text("Greetings"))
