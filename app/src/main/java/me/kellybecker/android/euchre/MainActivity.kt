@@ -65,9 +65,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        scope.launch {
-            gameInstance.webSocket.close()
-        }
     }
 }
 
@@ -110,12 +107,12 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                 if (it.playerID == idPlayer) {
                     when (it.methodID) {
                         "@phaseCut" -> {
-                            showCutDeck = true
-
-                            gameInstance.wsSend(gameInstance._phaseCut(it.copy(
-                                methodID = it.methodID.substring(1),
-                                boolean  = flowCutDeck.first(),
-                            )))
+//                            showCutDeck = true
+//
+//                            gameInstance.wsSend(gameInstance._phaseCut(it.copy(
+//                                methodID = it.methodID.substring(1),
+//                                boolean  = flowCutDeck.first(),
+//                            )))
                         }
                     }
                 }
@@ -228,12 +225,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                 ),
                                 onClick = {
                                     idPlayer = 0
-
-                                    scope.launch{ gameInstance.wsSend(WSData(
-                                        playerID = idPlayer,
-                                        methodID = "aiOverride",
-                                        boolean = true,
-                                    )) }
+                                    gameInstance.webSocket.playerID = idPlayer
                                 },
                             ) {
                                 Text("0")
@@ -247,12 +239,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                     }
                                 ), onClick = {
                                     idPlayer = 1
-
-                                    scope.launch{ gameInstance.wsSend(WSData(
-                                        playerID = idPlayer,
-                                        methodID = "aiOverride",
-                                        boolean = true,
-                                    )) }
+                                    gameInstance.webSocket.playerID = idPlayer
                                 }
                             ) {
                                 Text("1")
@@ -266,12 +253,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                     }
                                 ), onClick = {
                                     idPlayer = 2
-
-                                    scope.launch{ gameInstance.wsSend(WSData(
-                                        playerID = idPlayer,
-                                        methodID = "aiOverride",
-                                        boolean = true,
-                                    )) }
+                                    gameInstance.webSocket.playerID = idPlayer
                                 }
                             ) {
                                 Text("2")
@@ -285,12 +267,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                     }
                                 ), onClick = {
                                     idPlayer = 3
-
-                                    scope.launch{ gameInstance.wsSend(WSData(
-                                        playerID = idPlayer,
-                                        methodID = "aiOverride",
-                                        boolean = true,
-                                    )) }
+                                    gameInstance.webSocket.playerID = idPlayer
                                 }
                             ) {
                                 Text("3")
@@ -299,7 +276,15 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                     )
                     Row {
                         Button(onClick = {
-                            scope.launch { showReady = false; flowReady.emit(true) }
+                            scope.launch {
+                                gameInstance.wsSend(WSData(
+                                    methodID = "aiOverride",
+                                    boolean = true,
+                                ))
+
+                                showReady = false;
+                                flowReady.emit(true)
+                            }
                         }) {
                             Text("Ready")
                         }

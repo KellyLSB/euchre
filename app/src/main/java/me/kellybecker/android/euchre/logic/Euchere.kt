@@ -6,11 +6,13 @@ import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.http.HttpMethod
+import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -86,8 +88,8 @@ fun scoreOrderIndex(card: Card, reverse: Boolean = false): Int {
 
 @Serializable
 data class WSData(
-    val playerID: Int,
     val methodID: String,
+    val playerID: Int = -1,
     val roomID: String = "",
     val loopback: Boolean = false,
     var boolean: Boolean = false,
@@ -101,10 +103,12 @@ class WebSocket {
         install(WebSockets)
     }
 
+    lateinit var wsURI: URI
     lateinit var session: DefaultClientWebSocketSession
     lateinit var receiverJob: Job
+
+    var playerID: Int = -1
     lateinit var roomID: String
-    lateinit var wsURI: URI
 
     val receiverFunc = mutableListOf<suspend (WSData) -> Unit>()
     val receiverFlow = MutableSharedFlow<WSData>()
@@ -133,24 +137,53 @@ class WebSocket {
         )
 
         // Register room with the server by sending #connect
-        send(WSData(playerID = 0, methodID = "#connect"))
+        send(WSData(methodID = "#connect"))
 
-        onReceive {
+        onReceive { _: String, obj: WSData ->
             Log.d("WS_RECEIVER", receiverFunc.toString())
-            val obj = Json.decodeFromString<WSData>(it)
-            Log.d("WS_RECEIVER", "Object:\n\t$obj")
-            receiverFunc.forEach{ it(obj) }
+            receiverFunc.forEach { it(obj) }
             receiverFlow.emit(obj)
         }
     }
 
-    private suspend fun onReceive(block: suspend (String) -> Unit) {
+    private suspend fun onReceive(block: suspend (txt: String) -> Unit) {
         receiverJob = session.launch {
-            for(msg in session.incoming) {
-                msg as? Frame.Text ?: continue
-                val txt: String = msg.readText()
-                Log.d("WS_RECEIVE", "Incoming: $txt")
-                block(txt)
+            session.incoming.consumeEach {
+                when (it) {
+                    is Frame.Text -> {
+                        val txt: String = it.readText()
+                        Log.d("WS_RECEIVE", "Incoming: $txt")
+                        block(txt)
+                    }
+
+                    is Frame.Close -> {
+                        Log.d("WS_RECEIVE", "Frame Close")
+                    }
+
+                    is Frame.Ping -> {
+                        Log.d("WS_RECEIVE", "PING")
+                    }
+
+                    is Frame.Pong -> {
+                        Log.d("WS_RECEIVE", "PONG")
+                    }
+
+                    is Frame.Binary -> {
+                        /*no implement*/
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun onReceive(block: suspend (txt: String, obj: WSData) -> Unit) {
+        onReceive { txt: String ->
+            try {
+                val obj = Json.decodeFromString<WSData>(txt)
+                Log.d("WS_RECEIVE", "Object:\n\t$obj")
+                block(txt, obj)
+            } catch(e: Throwable) {
+                Log.e("WS_RECEIVE", "${e.toString()}")
             }
         }
     }
@@ -164,12 +197,18 @@ class WebSocket {
     }
 
     suspend fun close() {
+        Log.d("WS_CLOSE", "Closed Websocket Connection...")
         if(this::receiverJob.isInitialized) {
-            receiverJob.cancel(message = "Closed")
+            receiverJob.cancel(
+                message = "Closed by Client"
+            )
         }
 
         if(this::session.isInitialized) {
-            session.close()
+            session.close(CloseReason(
+                CloseReason.Codes.GOING_AWAY,
+                "Closed by Client"
+            ))
         }
     }
 
@@ -191,13 +230,29 @@ class WebSocket {
         }
     }
 
+    fun wrapPlayer(obj: WSData): WSData {
+        return obj.copy(
+            playerID = if(obj.playerID < 0) {
+                this.playerID
+            } else {
+                obj.playerID
+            }
+        )
+    }
+
     suspend fun send(obj: WSData) {
         Log.d("WS_SEND", "Object: $obj")
         val txt = Json.encodeToString(obj.copy(roomID = roomID))
         Log.d("WS_SEND", "Message: $txt")
 
         if(this::session.isInitialized) {
-            session.send(Frame.Text(txt))
+            if(session.isActive) {
+                session.send(Frame.Text(txt))
+            } else {
+                Log.d("WS_SEND", "Client Unconnected")
+            }
+        } else {
+            Log.e("WS_SEND", "Client Uninitialized")
         }
     }
 }
@@ -439,6 +494,7 @@ class Game {
     }
 
     suspend fun wsSend(data: WSData) {
+        val data = webSocket.wrapPlayer(data)
         wsMessage(data, relayed = false)
         webSocket.send(data)
     }
@@ -570,8 +626,8 @@ object CardSerializer : JsonContentPolymorphicSerializer<Card>(Card::class) {
 object StackSerializer : KSerializer<List<Card>> {
     private val builtIn: KSerializer<List<Card>> = ListSerializer(CardSerializer)
 
-    override fun deserialize(decoder: Decoder): List<Card> {
-        return builtIn.deserialize(decoder)
+    override fun deserialize(decoder: Decoder): Stack {
+        return Stack(builtIn.deserialize(decoder))
     }
 
     override val descriptor: SerialDescriptor = builtIn.descriptor
@@ -579,14 +635,16 @@ object StackSerializer : KSerializer<List<Card>> {
     override fun serialize(encoder: Encoder, value: List<Card>) {
         builtIn.serialize(encoder, value)
     }
-
 }
 
 /**
  * A stack of cards
  */
 @Serializable(with = StackSerializer::class)
-open class Stack : MutableList<Card> by mutableListOf() {
+open class Stack() : MutableList<Card> by mutableListOf() {
+    constructor(ni: List<Card>) : this() {
+        this.fromList(ni)
+    }
 
     /**
      * Cut the stack of cards by a random amount
@@ -594,6 +652,7 @@ open class Stack : MutableList<Card> by mutableListOf() {
     fun cut(cutFunc: (Int) -> Int = { ((it-3)..(it+2)).random() }) {
         val middle = size / 2
         val cutPnt = cutFunc(middle)
+        Log.d("CUT", "Middle: ${middle}, Pnt: ${cutPnt}, List: ${toList()}")
         val newList = listOf(
             subList(0, cutPnt), subList(cutPnt, size),
         ).reversed().flatten()
@@ -665,8 +724,12 @@ open class Stack : MutableList<Card> by mutableListOf() {
     }
 
     open fun fromStack(ni: Stack): Stack {
+        return fromList(ni.toList())
+    }
+
+    open fun fromList(ni: List<Card>): Stack {
         this.removeAll{true}
-        this.addAll(ni.toStack())
+        this.addAll(ni)
         return this
     }
 

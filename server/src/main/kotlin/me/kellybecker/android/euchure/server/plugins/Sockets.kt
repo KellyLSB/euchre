@@ -15,6 +15,7 @@ import io.ktor.websocket.closeExceptionally
 import io.ktor.websocket.readText
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
 import kotlinx.coroutines.channels.ClosedSendChannelException
+import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.isActive
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -28,11 +29,25 @@ class SocketConnection(
     val session: DefaultWebSocketServerSession
 ) {
     suspend fun forIncoming(func: suspend (txt: String) -> Unit) {
-        for(frame in session.incoming) {
-            if(frame is Frame.Text) {
-                val txt = frame.readText()
-                println("[Server:$roomID] Incoming (Raw):\n\t$txt")
-                func(txt)
+        session.incoming.consumeEach {
+            connections.clean()
+
+            when(it) {
+                is Frame.Close -> {
+                    println("[Session:${session.hashCode()}] Closing the Connection...")
+                }
+                is Frame.Ping -> {
+                    println("[Session:${session.hashCode()}] PING")
+                }
+                is Frame.Pong -> {
+                    println("[Session:${session.hashCode()}] PING")
+                }
+                is Frame.Text -> {
+                    val txt = it.readText()
+                    println("[Session:${session.hashCode()};ROOM:$roomID] Incoming (Raw):\n\t$txt")
+                    func(txt)
+                }
+                is Frame.Binary -> { /*do nothing*/ }
             }
         }
     }
@@ -46,7 +61,7 @@ class SocketConnection(
                 1, jsn.jsonObject["roomID"].toString().length - 1
             )
 
-            println("\n\n[Server:$roomID] Incoming:\n\t${jsn.jsonObject}\n")
+            println("[Session:${session.hashCode()};ROOM:$roomID] Incoming:\n\t${jsn.jsonObject}")
             func(txt, jsn)
         }
     }
@@ -73,10 +88,14 @@ class SocketPool: MutableList<SocketConnection> by mutableListOf() {
         }
     }
 
+    suspend fun clean() = this.filter{ !it.session.isActive }.forEach { it.close() }
+
     suspend fun selectRoom(roomID: String?, func: suspend (SocketConnection) -> Unit) {
-        this.filter{ it.session.isActive }
+        val sockets = this.filter{ it.session.isActive }
             .filter{ it.roomID == roomID }
-            .forEach { func(it) }
+
+        println("${sockets}")
+        sockets.forEach { func(it) }
     }
 
     fun selectSession(session: DefaultWebSocketServerSession): SocketConnection? {
@@ -115,12 +134,7 @@ class SocketPool: MutableList<SocketConnection> by mutableListOf() {
 }
 
 fun Application.configureSockets() {
-    install(WebSockets) {
-        pingPeriod = Duration.ofSeconds(15)
-        timeout = Duration.ofSeconds(15)
-        maxFrameSize = Long.MAX_VALUE
-        masking = false
-    }
+    install(WebSockets)
     routing {
         webSocket("/ws") { // websocketSession
             connections.addToRoom(null, this)
@@ -137,6 +151,7 @@ fun Application.configureSockets() {
                     println("\tConnections: ${connections.numConnections()}")
 
                     connections.selectRoom(session.roomID) {
+                        println("[Connection:${it.roomID}]")
                         if(session != it || jsn.jsonObject["loopback"].toString() == "true") {
                              it.session.outgoing.send(Frame.Text(txt))
                         }
