@@ -76,6 +76,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
     var idRoom by remember { mutableStateOf("Room") }
     var idPlayer by remember { mutableStateOf(1) }
     var showReady by remember { mutableStateOf(true) }
+    var showPlay  by remember { mutableStateOf(false) }
     val flowReady  = remember { MutableSharedFlow<Boolean>() }
 
     // User Input Dialogs
@@ -94,18 +95,26 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
         gameInstance.webSocket.roomID = idRoom
         gameInstance.webSocket.playerID = idPlayer
 
+        // Game Events
         gameInstance.webSocket.onMessage {
             println("Incoming: ${it}")
             gameInstance.wsMessage(it, relayed = true)
         }
 
-        println("Before Flow Collect")
+        // UI Events unlrelated to player
+        gameInstance.webSocket.onMessage {
+            when(it.methodID) {
+                "claimHost" -> showPlay = true
+            }
+        }
 
+        // Player Events
         // I'm the foreigner; receive my play
         scope.launch {
             gameInstance.webSocket.receiverFlow.collect {
                 if (it.playerID == idPlayer) {
                     when (it.methodID) {
+                        "@phaseReady" -> showPlay = true
                         "@phaseCut" -> {
 //                            showCutDeck = true
 //
@@ -279,18 +288,20 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                         }
                     )
                     Row {
-                        Button(onClick = {
-                            scope.launch {
-                                gameInstance.wsSend(WSData(
-                                    methodID = "aiOverride",
-                                    boolean = true,
-                                ))
+                        if(showPlay) {
+                            Button(onClick = {
+                                scope.launch {
+                                    gameInstance.wsSend(WSData(
+                                        methodID = "aiOverride",
+                                        boolean = true,
+                                    ))
 
-                                showReady = false
-                                flowReady.emit(true)
+                                    showReady = false
+                                    flowReady.emit(true)
+                                }
+                            }) {
+                                Text("Ready")
                             }
-                        }) {
-                            Text("Ready")
                         }
                         Button(onClick = {
                             scope.launch { gameInstance.webSocket.connect(URI(wsURI)) }

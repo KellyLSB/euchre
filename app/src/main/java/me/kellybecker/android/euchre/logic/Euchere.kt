@@ -1,6 +1,7 @@
 package me.kellybecker.android.euchre.logic
 
 import android.util.Log
+import androidx.compose.runtime.remember
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
@@ -332,12 +333,10 @@ class Game {
                 ))
             }
 
-            wsSend(
-                WSData(
+            wsSend(WSData(
                 methodID = "phaseReady",
                 boolean   = true,
-            )
-            )
+            ))
         } else {
             val obj = webSocket.await(WSData(
                 playerID = isHost.first,
