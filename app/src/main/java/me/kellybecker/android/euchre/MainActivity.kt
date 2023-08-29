@@ -92,6 +92,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
 
     LaunchedEffect(Unit) {
         gameInstance.webSocket.roomID = idRoom
+        gameInstance.webSocket.playerID = idPlayer
 
         gameInstance.webSocket.onMessage {
             println("Incoming: ${it}")
@@ -122,53 +123,57 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
 
         flowReady.first()
 
-        gameInstance.phaseShuffle()
+        gameInstance.phaseReady()
 
-        println("Shuffled")
-
-        gameInstance.phaseCut {
-            showCutDeck = true
-            flowCutDeck.first()
-        }
-
-        println("Cutted")
-
-        gameInstance.deal()
-
-        // Pick It Up to Select Trump
-        gameInstance.phasePickItUp {
-            showPickItUp = true
-            flowPickItUp.first()
-        }
-
-        // Select Trump
-        if(gameInstance.trump() == "") {
-            gameInstance.phaseSelectTrump {
-                coroutineScope {
-                    showSelectTrump = true
-                    flowSelectTrump.first()
-                }
-            }
-        }
-
-        if(gameInstance.trump() != "") {
-            gameInstance.phaseGoAlone {
-                coroutineScope {
-                    showGoAlone = true
-                    flowGoAlone.first()
-                }
-            }
-
-            gameInstance.phasePlay {
-                coroutineScope {
-                    showYourTurn = true
-                    flowYourTurn.first()
-                }
-            }
-        } else {
-            gameInstance.reset()
-            // Redeal...
-        }
+//
+//
+//        gameInstance.phaseShuffle()
+//
+//        println("Shuffled")
+//
+//        gameInstance.phaseCut {
+//            showCutDeck = true
+//            flowCutDeck.first()
+//        }
+//
+//        println("Cutted")
+//
+//        gameInstance.deal()
+//
+//        // Pick It Up to Select Trump
+//        gameInstance.phasePickItUp {
+//            showPickItUp = true
+//            flowPickItUp.first()
+//        }
+//
+//        // Select Trump
+//        if(gameInstance.trump() == "") {
+//            gameInstance.phaseSelectTrump {
+//                coroutineScope {
+//                    showSelectTrump = true
+//                    flowSelectTrump.first()
+//                }
+//            }
+//        }
+//
+//        if(gameInstance.trump() != "") {
+//            gameInstance.phaseGoAlone {
+//                coroutineScope {
+//                    showGoAlone = true
+//                    flowGoAlone.first()
+//                }
+//            }
+//
+//            gameInstance.phasePlay {
+//                coroutineScope {
+//                    showYourTurn = true
+//                    flowYourTurn.first()
+//                }
+//            }
+//        } else {
+//            gameInstance.reset()
+//            // Redeal...
+//        }
         // gameInstance.reset()
         // loop back to the beginning
         // show the points for the tricks won

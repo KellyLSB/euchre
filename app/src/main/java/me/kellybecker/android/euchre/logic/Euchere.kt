@@ -220,12 +220,11 @@ class WebSocket {
     suspend fun await(fi: WSData): WSData {
         send(fi.copy(methodID = "@" + fi.methodID))
 
+        Log.d("WS_AWAIT", "Waiting for response... [@${fi.methodID}]")
         while(true) {
-            Log.d("WS_AWAIT", "Waiting for response...")
-
             val it = receiverFlow.first()
-            Log.d("WS_AWAIT", "Response: $it")
             if(fi.playerID == it.playerID && fi.methodID == it.methodID) {
+                Log.d("WS_AWAIT", "Response: $it")
                 return it
             }
         }
@@ -333,7 +332,12 @@ class Game {
                 ))
             }
 
-
+            wsSend(
+                WSData(
+                methodID = "phaseReady",
+                boolean   = true,
+            )
+            )
         } else {
             val obj = webSocket.await(WSData(
                 playerID = isHost.first,
