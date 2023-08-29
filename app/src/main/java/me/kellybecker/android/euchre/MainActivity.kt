@@ -43,7 +43,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import me.kellybecker.android.euchre.logic.Card
 import me.kellybecker.android.euchre.logic.Game
@@ -123,7 +122,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
 
         flowReady.first()
 
-        gameInstance.shuffle()
+        gameInstance.phaseShuffle()
 
         println("Shuffled")
 
@@ -282,7 +281,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                     boolean = true,
                                 ))
 
-                                showReady = false;
+                                showReady = false
                                 flowReady.emit(true)
                             }
                         }) {

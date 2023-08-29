@@ -94,6 +94,7 @@ data class WSData(
     val loopback: Boolean = false,
     var boolean: Boolean = false,
     var string: String = "",
+    var intList: List<Int> = listOf(),
     var stack: Stack = Stack(),
     var card: Card = Card("", ""),
 )
@@ -282,6 +283,7 @@ class Game {
 
     // WebSockets
     val webSocket: WebSocket = WebSocket()
+    var isHost: Pair<Int, Int> = Pair(-1, 0)
 
     // Shuffle the cards
     fun shuffle() { deck.shuffleCards() }
@@ -321,7 +323,55 @@ class Game {
         }
     }
 
-    fun _phaseCut(obj: WSData, msg: String = "CutDeck"): WSData {
+    suspend fun phaseReady() {
+        if(isHost.second > 0) {
+            hands.filter { it.playerType == 0 }.map {
+                wsSend(WSData(
+                    playerID = it.hand,
+                    methodID = "aiOverride",
+                    boolean  = false,
+                ))
+            }
+
+
+        } else {
+            val obj = webSocket.await(WSData(
+                playerID = isHost.first,
+                methodID = "phaseReady"
+            ))
+
+            Log.d("EUCHRE_READY", "Object: $obj")
+        }
+    }
+
+    fun _phaseShuffle(obj: WSData, msg: String = "_phaseShuffle"): WSData {
+        this.shuffle()
+        obj.stack = this.deck.toStack()
+        Log.d("EUCHRE_SHUFFLE", "$msg: $obj")
+        return obj
+    }
+
+    suspend fun phaseShuffle() {
+        val obj = WSData(
+            playerID = dealer % 4,
+            methodID = "phaseShuffle"
+        )
+
+        Log.d("EUCHRE_SHUFFLE", "PlayerType: ${hands[dealer % 4].playerType}")
+
+        when(hands[dealer % 4].playerType) {
+            in 0..1 -> wsSend(_phaseShuffle(obj))
+            else -> {
+                val obj = webSocket.await(obj)
+
+                Log.d("EUCHRE_SHUFFLE", "Remote Shuffle; WSData: ${obj}")
+
+                this.deck.fromStack(obj.stack)
+            }
+        }
+    }
+
+    fun _phaseCut(obj: WSData, msg: String = "_phaseCut"): WSData {
         if(obj.boolean) {
             this.cut()
             obj.stack = this.deck.toStack()
@@ -337,7 +387,7 @@ class Game {
             methodID = "phaseCut",
         )
 
-        Log.d("CUT", "PlayerType: ${hands[(dealer + 1) % 4].playerType}")
+        Log.d("EUCHRE_CUT", "PlayerType: ${hands[(dealer + 1) % 4].playerType}")
 
         when(hands[(dealer + 1) % 4].playerType) {
             // AI Turn
@@ -349,6 +399,8 @@ class Game {
                 val obj = webSocket.await(obj)
 
                 Log.d("EUCHRE_CUT", "Remote Cut; WSData: ${obj}")
+
+                this.deck.fromStack(obj.stack)
             }
         }
     }
@@ -484,11 +536,32 @@ class Game {
         when(data.methodID) {
             // Configure game to accept input from where...
             "aiOverride" -> hands[data.playerID].playerType = if(!relayed) {
-                if(data.boolean) { 1 } else { 0 }
                 Log.d("WS", "Local User (false is AI): ${data.boolean.toString()}")
+                if(data.boolean) { 1 } else { 0 }
             } else {
                 Log.d("WS", "Remote Player")
-                -1
+                if(data.boolean) { -1 } else { 2 }
+            }
+            "claimHost" -> isHost = Pair(data.playerID, if(!relayed) {
+                if(data.boolean) { 1 } else { 0 }
+            } else {
+                if(data.boolean) { -1 } else { 0 }
+            })
+            "#connect" -> {
+                webSocket.session.launch {
+                    // advertise our human
+                    wsSend(WSData(
+                        methodID = "aiOverride",
+                        boolean = true,
+                    ))
+
+                    if (isHost == Pair(-1, 0)) {
+                        wsSend(WSData(
+                            methodID = "claimHost",
+                            boolean = true,
+                        ))
+                    }
+                }
             }
         }
     }
