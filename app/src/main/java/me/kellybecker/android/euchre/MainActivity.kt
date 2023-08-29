@@ -114,7 +114,10 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
             gameInstance.webSocket.receiverFlow.collect {
                 if (it.playerID == idPlayer) {
                     when (it.methodID) {
-                        "@phaseReady" -> showPlay = true
+                        "@phaseReady" -> showPlay = gameInstance.readyCheck(
+                            playerID = it.playerAlt,
+                            boolean = it.boolean,
+                        )
                         "@phaseCut" -> {
 //                            showCutDeck = true
 //

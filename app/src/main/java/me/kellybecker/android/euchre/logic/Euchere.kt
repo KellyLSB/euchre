@@ -1,7 +1,6 @@
 package me.kellybecker.android.euchre.logic
 
 import android.util.Log
-import androidx.compose.runtime.remember
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
@@ -91,11 +90,11 @@ fun scoreOrderIndex(card: Card, reverse: Boolean = false): Int {
 data class WSData(
     val methodID: String,
     val playerID: Int = -1,
+    val playerAlt: Int = -1,
     val roomID: String = "",
     val loopback: Boolean = false,
     var boolean: Boolean = false,
     var string: String = "",
-    var intList: List<Int> = listOf(),
     var stack: Stack = Stack(),
     var card: Card = Card("", ""),
 )
@@ -284,6 +283,9 @@ class Game {
     // WebSockets
     val webSocket: WebSocket = WebSocket()
     var isHost: Pair<Int, Int> = Pair(-1, 0)
+    val readyChecks: MutableList<Boolean> = mutableListOf(
+        false, false, false, false
+    )
 
     // Shuffle the cards
     fun shuffle() { deck.shuffleCards() }
@@ -339,8 +341,10 @@ class Game {
             ))
         } else {
             val obj = webSocket.await(WSData(
+                playerAlt = webSocket.playerID,
                 playerID = isHost.first,
-                methodID = "phaseReady"
+                methodID = "phaseReady",
+                boolean = true,
             ))
 
             Log.d("EUCHRE_READY", "Object: $obj")
@@ -573,6 +577,23 @@ class Game {
         val data = webSocket.wrapPlayer(data)
         wsMessage(data, relayed = false)
         webSocket.send(data)
+    }
+
+    fun readyCheck(playerID: Int, boolean: Boolean): Boolean {
+        readyChecks[playerID] = boolean
+
+        var areWeReady: Boolean = true
+        readyChecks.forEachIndexed { index, b ->
+            if(hands[index].playerType == 0) {
+                areWeReady = areWeReady && true
+            } else {
+                if(index != isHost.first) areWeReady = areWeReady && b
+            }
+        }
+
+        Log.d("EUCHRE_readyCheck", "${readyChecks} = ${areWeReady}")
+
+        return areWeReady
     }
 
     fun whoseTurn(offset: Int = 1): Int {
