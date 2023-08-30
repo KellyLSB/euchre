@@ -320,10 +320,15 @@ fun ReadyPlayerSelect(
             containerColor = if (idPlayer == player) {
                 MaterialTheme.colorScheme.onTertiaryContainer
             } else {
-                MaterialTheme.colorScheme.onPrimaryContainer
+                if(gameInstance.readyChecks[player]) {
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                }
             }
         ), onClick = {
-            onChangePlayer(player)
+            if(gameInstance.isHost.first != idPlayer)
+            if(!gameInstance.readyChecks[player]) onChangePlayer(player)
         }
     ) {
         Text("${player}")
