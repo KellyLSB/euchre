@@ -40,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -231,62 +230,16 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                             }
                         },
                         actions = {
-                            Button(
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (idPlayer == 0) {
-                                        MaterialTheme.colorScheme.onTertiaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
+                            (0..3).forEach {
+                                ReadyPlayerSelect(
+                                    player = it,
+                                    gameInstance = gameInstance,
+                                    idPlayer = idPlayer,
+                                    onChangePlayer = {
+                                        idPlayer = it
+                                        gameInstance.webSocket.playerID = idPlayer
                                     }
-                                ),
-                                onClick = {
-                                    idPlayer = 0
-                                    gameInstance.webSocket.playerID = idPlayer
-                                },
-                            ) {
-                                Text("0")
-                            }
-                            Button(
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (idPlayer == 1) {
-                                        MaterialTheme.colorScheme.onTertiaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    }
-                                ), onClick = {
-                                    idPlayer = 1
-                                    gameInstance.webSocket.playerID = idPlayer
-                                }
-                            ) {
-                                Text("1")
-                            }
-                            Button(
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (idPlayer == 2) {
-                                        MaterialTheme.colorScheme.onTertiaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    }
-                                ), onClick = {
-                                    idPlayer = 2
-                                    gameInstance.webSocket.playerID = idPlayer
-                                }
-                            ) {
-                                Text("2")
-                            }
-                            Button(
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = if (idPlayer == 3) {
-                                        MaterialTheme.colorScheme.onTertiaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    }
-                                ), onClick = {
-                                    idPlayer = 3
-                                    gameInstance.webSocket.playerID = idPlayer
-                                }
-                            ) {
-                                Text("3")
+                                )
                             }
                         }
                     )
@@ -307,7 +260,9 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                             }
                         }
                         Button(onClick = {
-                            scope.launch { gameInstance.webSocket.connect(URI(wsURI)) }
+                            scope.launch {
+                                gameInstance.webSocket.connect(URI(wsURI))
+                            }
                         }) {
                             Text("Connect")
                         }
@@ -350,6 +305,29 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ReadyPlayerSelect(
+    player: Int,
+    gameInstance: Game,
+    idPlayer: Int,
+    onChangePlayer: (Int) -> Unit,
+) {
+    Button(
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (idPlayer == player) {
+                MaterialTheme.colorScheme.onTertiaryContainer
+            } else {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            }
+        ), onClick = {
+            onChangePlayer(player)
+        }
+    ) {
+        Text("${player}")
+        if(gameInstance.readyChecks[player]) Text("✓")
     }
 }
 
