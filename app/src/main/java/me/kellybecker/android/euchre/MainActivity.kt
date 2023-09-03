@@ -107,14 +107,10 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
 
         // UI Events unlrelated to player
         gameInstance.webSocket.onMessage { it, relayed ->
-            Log.d("OnMsg", "Related: $relayed, $it")
+            Log.d("OnMsg", "Relayed: $relayed, $it")
             when(it.methodID) {
-                "claimHost" -> showReady = true
-                "phaseDeal" -> if(it.boolean) {
-                    recompose()
-                    Log.d("EUCHRE", "${gameInstance.hands}")
-                    Log.d("EUCHRE", "${gameInstance.kitty}")
-                } else {}
+                "claimHost" -> if(relayed) showReady = true
+                "phaseDeal" -> if(it.boolean) recompose()
                 else -> {}
             }
         }
@@ -244,7 +240,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                         }
                     )
                     Row {
-                        if(showReady) {
+                        if(!connected || connected && showReady) {
                             Button(onClick = {
                                 scope.launch {
                                     gameInstance.wsSend(WSData(
@@ -265,7 +261,11 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                 connected = gameInstance.webSocket.isConnected()
                             }
                         }) {
-                            Text("Connect")
+                            if(connected) {
+                                Text("Reconnect")
+                            } else {
+                                Text("Connect")
+                            }
                         }
                     }
                     Row {

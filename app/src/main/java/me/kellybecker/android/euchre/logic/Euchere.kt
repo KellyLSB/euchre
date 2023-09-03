@@ -93,6 +93,7 @@ data class WSData(
     val playerAlt: Int = -1,
     val roomID: String = "",
     val loopback: Boolean = false,
+    val relayed: Boolean = false,
     var boolean: Boolean = false,
     var string: String = "",
     var stack: Stack = Stack(),
@@ -143,7 +144,7 @@ class WebSocket {
 
         onReceive { _: String, obj: WSData ->
             Log.d("WS_RECEIVER", receiverFunc.toString())
-            wsMessage(obj, true)
+            wsMessage(obj, obj.relayed)
             receiverFlow.emit(obj)
         }
     }
@@ -184,7 +185,7 @@ class WebSocket {
             try {
                 val obj = Json.decodeFromString<WSData>(txt)
                 Log.d("WS_RECEIVE", "Object:\n\t$obj")
-                block(txt, obj)
+                block(txt, obj.copy(relayed = true))
             } catch(e: Throwable) {
                 Log.e("WS_RECEIVE", "${e.toString()}")
             }
@@ -225,6 +226,8 @@ class WebSocket {
         fi: WSData,
         en: Map<String, Any?> = mapOf(),
     ): WSData {
+        if(!isConnected()) return fi
+
         if(fi.methodID.substring(0, 1) != "@") send(fi.copy(methodID = "@" + fi.methodID))
 
         Log.d("WS_AWAIT", "Waiting for response... [${fi.methodID}:$en]")
@@ -257,7 +260,9 @@ class WebSocket {
 
     suspend fun send(obj: WSData) {
         Log.d("WS_SEND", "Object: $obj")
-        val txt = Json.encodeToString(obj.copy(roomID = roomID))
+        val txt = Json.encodeToString(obj.copy(
+            roomID = roomID, relayed = false,
+        ))
         Log.d("WS_SEND", "Message: $txt")
 
         if(this::session.isInitialized) {
@@ -341,28 +346,35 @@ class Game {
     }
 
     suspend fun phaseReady() {
-        if(isHost.second > 0) {
-            hands.filter { it.playerType == 0 }.map {
+        when(isHost.second) {
+            1 -> {
+                hands.filter { it.playerType == 0 }.map {
+                    wsSend(WSData(
+                        playerID = it.hand,
+                        methodID = "aiOverride",
+                        boolean  = false,
+                    ))
+                }
+
                 wsSend(WSData(
-                    playerID = it.hand,
-                    methodID = "aiOverride",
-                    boolean  = false,
+                    methodID = "phaseReady",
+                    boolean   = true,
                 ))
             }
-
-            wsSend(WSData(
+            0 -> wsSend(WSData(
                 methodID = "phaseReady",
                 boolean   = true,
             ))
-        } else {
-            val obj = webSocket.await(WSData(
-                playerAlt = webSocket.playerID,
-                playerID = isHost.first,
-                methodID = "phaseReady",
-                boolean = true,
-            ))
+            -1 -> {
+                val obj = webSocket.await(WSData(
+                    playerAlt = webSocket.playerID,
+                    playerID = isHost.first,
+                    methodID = "phaseReady",
+                    boolean = true,
+                ), mapOf("boolean" to true))
 
-            Log.d("EUCHRE_READY", "Object: $obj")
+                Log.d("EUCHRE_READY", "Object: $obj")
+            }
         }
     }
 
