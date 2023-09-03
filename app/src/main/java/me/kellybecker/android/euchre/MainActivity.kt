@@ -74,6 +74,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
     var wsURI by remember { mutableStateOf("ws://10.0.2.2:8080/ws") }
     var idRoom by remember { mutableStateOf("Room") }
     var idPlayer by remember { mutableStateOf(1) }
+    var connected by remember { mutableStateOf(false) }
     var showReady by remember { mutableStateOf(true) }
     var showPlay  by remember { mutableStateOf(false) }
     val flowReady  = remember { MutableSharedFlow<Boolean>() }
@@ -93,6 +94,8 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
     LaunchedEffect(Unit) {
         gameInstance.webSocket.roomID = idRoom
         gameInstance.webSocket.playerID = idPlayer
+
+        gameInstance.webSocket.onClose { connected = it }
 
         // Game Events
         gameInstance.webSocket.onMessage {
@@ -117,14 +120,6 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                             playerID = it.playerAlt,
                             boolean = it.boolean,
                         )
-                        "@phaseCut" -> {
-//                            showCutDeck = true
-//
-//                            gameInstance.wsSend(gameInstance._phaseCut(it.copy(
-//                                methodID = it.methodID.substring(1),
-//                                boolean  = flowCutDeck.first(),
-//                            )))
-                        }
                     }
                 }
             }
@@ -135,17 +130,13 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
         flowReady.first()
 
         gameInstance.phaseReady()
-
-//
-//
-//        gameInstance.phaseShuffle()
-//
-//        println("Shuffled")
-//
-//        gameInstance.phaseCut {
-//            showCutDeck = true
-//            flowCutDeck.first()
-//        }
+        println("READIED")
+        gameInstance.phaseShuffle()
+        println("SHUFFLED")
+        gameInstance.phaseCut {
+            showCutDeck = true
+            flowCutDeck.first()
+        }
 //
 //        println("Cutted")
 //
@@ -212,7 +203,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                     value = wsURI,
                                     textStyle = LocalTextStyle.current.copy(
                                         fontSize = MaterialTheme.typography.labelSmall.fontSize,
-                                        color = if(gameInstance.webSocket.isConnected()) {
+                                        color = if(connected) {
                                             Color.Green
                                         } else {
                                             Color.Red
@@ -262,6 +253,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                         Button(onClick = {
                             scope.launch {
                                 gameInstance.webSocket.connect(URI(wsURI))
+                                connected = gameInstance.webSocket.isConnected()
                             }
                         }) {
                             Text("Connect")
@@ -308,6 +300,9 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
     }
 }
 
+/**
+ * ReadyPlayerSelect templates the player selection prompt
+ */
 @Composable
 fun ReadyPlayerSelect(
     player: Int,

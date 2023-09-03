@@ -113,6 +113,7 @@ class WebSocket {
 
     val receiverFunc = mutableListOf<suspend (WSData) -> Unit>()
     val receiverFlow = MutableSharedFlow<WSData>()
+    val closingFunc  = mutableListOf<suspend (Boolean) -> Unit>()
 
     fun setURI(uri: URI = URI("")) {
         if(uri.toString() == "") {
@@ -158,6 +159,7 @@ class WebSocket {
                     }
 
                     is Frame.Close -> {
+                        close()
                         Log.d("WS_RECEIVE", "Frame Close")
                     }
 
@@ -205,17 +207,18 @@ class WebSocket {
             )
         }
 
-        if(this::session.isInitialized) {
+        if(this::session.isInitialized && session.isActive) {
             session.close(CloseReason(
                 CloseReason.Codes.GOING_AWAY,
                 "Closed by Client"
             ))
         }
+
+        closingFunc.forEach { it(isConnected()) }
     }
 
-    fun onMessage(onMsg: (WSData) -> Unit) {
-        receiverFunc.add(onMsg)
-    }
+    fun onMessage(onMsg: (WSData) -> Unit) = receiverFunc.add(onMsg)
+    fun onClose(onCls: (Boolean) -> Unit) = closingFunc.add(onCls)
 
     suspend fun await(fi: WSData): WSData {
         send(fi.copy(methodID = "@" + fi.methodID))
@@ -354,7 +357,7 @@ class Game {
     fun _phaseShuffle(obj: WSData, msg: String = "_phaseShuffle"): WSData {
         this.shuffle()
         obj.stack = this.deck.toStack()
-        Log.d("EUCHRE_SHUFFLE", "$msg: $obj")
+        Log.d("EUCHRE_SHUFFLE", "Local Shuffle; WSData: $obj")
         return obj
     }
 
@@ -371,18 +374,20 @@ class Game {
             else -> {
                 val obj = webSocket.await(obj)
 
-                Log.d("EUCHRE_SHUFFLE", "Remote Shuffle; WSData: ${obj}")
+                Log.d("EUCHRE_SHUFFLE", "Remote Shuffle; WSData: $obj")
 
                 this.deck.fromStack(obj.stack)
             }
         }
+
+        Log.d("EUCHRE_SHUFFLE", "Deck: ${this.deck}")
     }
 
     fun _phaseCut(obj: WSData, msg: String = "_phaseCut"): WSData {
         if(obj.boolean) {
             this.cut()
             obj.stack = this.deck.toStack()
-            Log.d("EUCHRE_CUT", "$msg: ${obj}")
+            Log.d("EUCHRE_CUT", "Local Cut; WSData: $obj")
         }
 
         return obj
@@ -405,11 +410,13 @@ class Game {
             else -> {
                 val obj = webSocket.await(obj)
 
-                Log.d("EUCHRE_CUT", "Remote Cut; WSData: ${obj}")
+                Log.d("EUCHRE_CUT", "Remote Cut; WSData: $obj")
 
                 this.deck.fromStack(obj.stack)
             }
         }
+
+        Log.d("EUCHRE_CUT", "Deck: ${this.deck}")
     }
 
     suspend fun phasePickItUp(checkUser: suspend () -> Boolean) {
@@ -562,7 +569,8 @@ class Game {
                         boolean = true,
                     ))
 
-                    if (isHost == Pair(-1, 0)) {
+                    // Claim host or send out subsequently on new connection
+                    if (isHost == Pair(-1, 0) || isHost == Pair(webSocket.playerID, 1)) {
                         wsSend(WSData(
                             methodID = "claimHost",
                             boolean = true,
