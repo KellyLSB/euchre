@@ -69,14 +69,17 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
+    // Recomposer
+    var _recompose by remember { mutableStateOf(false) }
+    val recompose: () -> Unit = { _recompose = !_recompose }
 
     // WebSockets / Select my Hand
     var wsURI by remember { mutableStateOf("ws://10.0.2.2:8080/ws") }
     var idRoom by remember { mutableStateOf("Room") }
     var idPlayer by remember { mutableStateOf(1) }
     var connected by remember { mutableStateOf(false) }
-    var showReady by remember { mutableStateOf(true) }
-    var showPlay  by remember { mutableStateOf(false) }
+    var showLobby by remember { mutableStateOf(true) }
+    var showReady  by remember { mutableStateOf(false) }
     val flowReady  = remember { MutableSharedFlow<Boolean>() }
 
     // User Input Dialogs
@@ -98,15 +101,21 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
         gameInstance.webSocket.onClose { connected = it }
 
         // Game Events
-        gameInstance.webSocket.onMessage {
-            println("Incoming: ${it}")
-            gameInstance.wsMessage(it, relayed = true)
+        gameInstance.webSocket.onMessage { it, relayed ->
+            gameInstance.wsMessage(it, relayed = relayed)
         }
 
         // UI Events unlrelated to player
-        gameInstance.webSocket.onMessage {
+        gameInstance.webSocket.onMessage { it, relayed ->
+            Log.d("OnMsg", "Related: $relayed, $it")
             when(it.methodID) {
-                "claimHost" -> showPlay = true
+                "claimHost" -> showReady = true
+                "phaseDeal" -> if(it.boolean) {
+                    recompose()
+                    Log.d("EUCHRE", "${gameInstance.hands}")
+                    Log.d("EUCHRE", "${gameInstance.kitty}")
+                } else {}
+                else -> {}
             }
         }
 
@@ -116,7 +125,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
             gameInstance.webSocket.receiverFlow.collect {
                 if (it.playerID == idPlayer) {
                     when (it.methodID) {
-                        "@phaseReady" -> showPlay = gameInstance.readyCheck(
+                        "@phaseReady" -> showReady = gameInstance.readyCheck(
                             playerID = it.playerAlt,
                             boolean = it.boolean,
                         )
@@ -195,7 +204,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                if(showReady) {
+                if(showLobby) {
                     TopAppBar(
                         title = {
                             Column {
@@ -235,7 +244,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                         }
                     )
                     Row {
-                        if(showPlay) {
+                        if(showReady) {
                             Button(onClick = {
                                 scope.launch {
                                     gameInstance.wsSend(WSData(
@@ -243,7 +252,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                                         boolean = true,
                                     ))
 
-                                    showReady = false
+                                    showLobby = false
                                     flowReady.emit(true)
                                 }
                             }) {
@@ -269,6 +278,8 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                     }
                 } else {
                     CardTable(
+                        _recompose = _recompose,
+                        recompose = recompose,
                         player = idPlayer,
                         gameInstance = gameInstance,
                         showCutDeck = showCutDeck,
@@ -333,6 +344,8 @@ fun ReadyPlayerSelect(
 
 @Composable
 fun CardTable(
+    _recompose: Boolean,
+    recompose: () -> Unit,
     player: Int,
     gameInstance: Game,
     showCutDeck: Boolean,
@@ -346,6 +359,8 @@ fun CardTable(
     showYourTurn: Boolean,
     onYourTurn: (Card) -> Unit,
 ) {
+    if(_recompose) {}
+
     if(showCutDeck) {
         AlertDialog(
             onDismissRequest = {},

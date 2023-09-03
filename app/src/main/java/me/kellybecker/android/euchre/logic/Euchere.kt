@@ -111,7 +111,7 @@ class WebSocket {
     var playerID: Int = -1
     lateinit var roomID: String
 
-    val receiverFunc = mutableListOf<suspend (WSData) -> Unit>()
+    val receiverFunc = mutableListOf<suspend (WSData, Boolean) -> Unit>()
     val receiverFlow = MutableSharedFlow<WSData>()
     val closingFunc  = mutableListOf<suspend (Boolean) -> Unit>()
 
@@ -143,7 +143,7 @@ class WebSocket {
 
         onReceive { _: String, obj: WSData ->
             Log.d("WS_RECEIVER", receiverFunc.toString())
-            receiverFunc.forEach { it(obj) }
+            wsMessage(obj, true)
             receiverFlow.emit(obj)
         }
     }
@@ -217,7 +217,8 @@ class WebSocket {
         closingFunc.forEach { it(isConnected()) }
     }
 
-    fun onMessage(onMsg: (WSData) -> Unit) = receiverFunc.add(onMsg)
+    suspend fun wsMessage(obj: WSData, relayed: Boolean = true) { receiverFunc.forEach{ it(obj, relayed) } }
+    fun onMessage(onMsg: (it: WSData, relayed: Boolean) -> Unit) = receiverFunc.add(onMsg)
     fun onClose(onCls: (Boolean) -> Unit) = closingFunc.add(onCls)
 
     suspend fun await(
@@ -426,8 +427,13 @@ class Game {
         Log.d("EUCHRE_CUT", "Deck: ${this.deck}")
     }
 
-    fun _phaseDeal(obj: WSData): WSData {
-        obj.stack = this.hands[obj.playerAlt].toStack()
+    fun _phaseDeal(obj: WSData, kitty: Boolean = false): WSData {
+        obj.stack = if(kitty) {
+            this.kitty.toStack()
+        } else {
+            this.hands[obj.playerAlt].toStack()
+        }
+
         return obj
     }
 
@@ -445,7 +451,8 @@ class Game {
                 webSocket.await(obj.copy(methodID = "@" + obj.methodID))
                 this.deal()
                 this.hands.forEach{ wsSend(_phaseDeal(obj.copy(playerAlt = it.hand))) }
-                webSocket.send(obj.copy(boolean = true))
+                wsSend(_phaseDeal(obj.copy(playerAlt = 4), kitty = true))
+                wsSend(obj.copy(boolean = true))
             }
             // Remote Turn
             else -> {
@@ -617,19 +624,22 @@ class Game {
                 }
             }
 
-            "phaseDeal" -> {
-                if(!data.boolean) {
+            "phaseDeal" -> if(!data.boolean) {
+                if(data.playerAlt > 3) {
+                    this.kitty.fromStack(data.stack)
+                } else {
                     this.hands[data.playerAlt].fromStack(data.stack)
-                    val dest = if (relayed) { "Remote" } else { "Local" }
-                    Log.d("EUCHRE_DEAL", "$dest Deal; WSData: $data")
                 }
+
+                val dest = if (relayed) { "Remote" } else { "Local" }
+                Log.d("EUCHRE_DEAL", "$dest Deal; WSData: $data")
             }
         }
     }
 
     suspend fun wsSend(data: WSData) {
         val data = webSocket.wrapPlayer(data)
-        wsMessage(data, relayed = false)
+        webSocket.wsMessage(data, relayed = false)
         webSocket.send(data)
     }
 
