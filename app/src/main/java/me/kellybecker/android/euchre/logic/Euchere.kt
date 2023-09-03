@@ -220,15 +220,26 @@ class WebSocket {
     fun onMessage(onMsg: (WSData) -> Unit) = receiverFunc.add(onMsg)
     fun onClose(onCls: (Boolean) -> Unit) = closingFunc.add(onCls)
 
-    suspend fun await(fi: WSData): WSData {
-        send(fi.copy(methodID = "@" + fi.methodID))
+    suspend fun await(
+        fi: WSData,
+        en: Map<String, Any?> = mapOf(),
+    ): WSData {
+        if(fi.methodID.substring(0, 1) != "@") send(fi.copy(methodID = "@" + fi.methodID))
 
-        Log.d("WS_AWAIT", "Waiting for response... [@${fi.methodID}]")
+        Log.d("WS_AWAIT", "Waiting for response... [${fi.methodID}:$en]")
         while(true) {
             val it = receiverFlow.first()
             if(fi.playerID == it.playerID && fi.methodID == it.methodID) {
-                Log.d("WS_AWAIT", "Response: $it")
-                return it
+                if(en.isEmpty() || en.map { m ->
+                    when(m.key) {
+                        "playerAlt" -> it.playerAlt == m.value
+                        "boolean" -> it.boolean == m.value
+                        else -> true
+                    }
+                }.reduce { acc, b -> acc && b }) {
+                    Log.d("WS_AWAIT", "Response: $it")
+                    return it
+                }
             }
         }
     }
@@ -373,9 +384,7 @@ class Game {
             in 0..1 -> wsSend(_phaseShuffle(obj))
             else -> {
                 val obj = webSocket.await(obj)
-
                 Log.d("EUCHRE_SHUFFLE", "Remote Shuffle; WSData: $obj")
-
                 this.deck.fromStack(obj.stack)
             }
         }
@@ -409,14 +418,43 @@ class Game {
             // Remote Turn
             else -> {
                 val obj = webSocket.await(obj)
-
                 Log.d("EUCHRE_CUT", "Remote Cut; WSData: $obj")
-
                 this.deck.fromStack(obj.stack)
             }
         }
 
         Log.d("EUCHRE_CUT", "Deck: ${this.deck}")
+    }
+
+    fun _phaseDeal(obj: WSData): WSData {
+        obj.stack = this.hands[obj.playerAlt].toStack()
+        return obj
+    }
+
+    suspend fun phaseDeal() {
+        val obj = WSData(
+            playerID = dealer % 4,
+            methodID = "phaseDeal",
+        )
+
+        Log.d("EUCHRE_DEAL", "PlayerType: ${hands[(dealer + 1) % 4].playerType}")
+
+        when(hands[dealer % 4].playerType) {
+            // AI/Local Turn
+            in 0..1 -> {
+                webSocket.await(obj.copy(methodID = "@" + obj.methodID))
+                this.deal()
+                this.hands.forEach{ wsSend(_phaseDeal(obj.copy(playerAlt = it.hand))) }
+                webSocket.send(obj.copy(boolean = true))
+            }
+            // Remote Turn
+            else -> {
+                webSocket.await(obj, mapOf("boolean" to true))
+                Log.d("EUCHRE_DEAL", "Remote Deal: Done")
+            }
+        }
+
+        Log.d("EUCHRE_DEAL", "Hand: ${this.hands[webSocket.playerID]}")
     }
 
     suspend fun phasePickItUp(checkUser: suspend () -> Boolean) {
@@ -576,6 +614,14 @@ class Game {
                             boolean = true,
                         ))
                     }
+                }
+            }
+
+            "phaseDeal" -> {
+                if(!data.boolean) {
+                    this.hands[data.playerAlt].fromStack(data.stack)
+                    val dest = if (relayed) { "Remote" } else { "Local" }
+                    Log.d("EUCHRE_DEAL", "$dest Deal; WSData: $data")
                 }
             }
         }

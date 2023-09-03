@@ -137,10 +137,10 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
             showCutDeck = true
             flowCutDeck.first()
         }
-//
-//        println("Cutted")
-//
-//        gameInstance.deal()
+        println("CUT")
+        gameInstance.phaseDeal()
+
+    //        gameInstance.deal()
 //
 //        // Pick It Up to Select Trump
 //        gameInstance.phasePickItUp {
