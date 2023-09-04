@@ -17,7 +17,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.KSerializer
@@ -194,11 +193,9 @@ class WebSocket {
         }
     }
 
+    fun isInitialized(): Boolean = this::session.isInitialized
     fun isConnected(): Boolean {
-        if(this::session.isInitialized) {
-            return session.isActive
-        }
-
+        if(isInitialized()) return session.isActive
         return false
     }
 
@@ -210,7 +207,7 @@ class WebSocket {
             )
         }
 
-        if(this::session.isInitialized && session.isActive) {
+        if(isConnected()) {
             session.close(CloseReason(
                 CloseReason.Codes.GOING_AWAY,
                 "Closed by Client"
@@ -268,7 +265,7 @@ class WebSocket {
         ))
         Log.d("WS_SEND", "Message: $txt")
 
-        if(this::session.isInitialized) {
+        if(isInitialized()) {
             if(session.isActive) {
                 session.send(Frame.Text(txt))
             } else {
@@ -672,7 +669,9 @@ class Game {
                         hands[dealer].pickItUp(kitty)
                     }
 
-                    webSocket.session.launch { wsSend(data.copy(playerID = 4)) }
+                    if(webSocket.isConnected()) {
+                        webSocket.session.launch { wsSend(data.copy(playerID = 4)) }
+                    }
                 }
             }
         }
