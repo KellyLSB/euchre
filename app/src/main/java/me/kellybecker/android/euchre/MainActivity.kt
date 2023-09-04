@@ -156,16 +156,10 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
             showSelectTrump = true
             flowSelectTrump.first()
         }
-//
-//        // Select Trump
-//        if(gameInstance.trump() == "") {
-//            gameInstance.phaseSelectTrump {
-//                coroutineScope {
-//                    showSelectTrump = true
-//                    flowSelectTrump.first()
-//                }
-//            }
-//        }
+        gameInstance.phaseGoAlone {
+            showGoAlone = true
+            flowGoAlone.first()
+        }
 //
 //        if(gameInstance.trump() != "") {
 //            gameInstance.phaseGoAlone {

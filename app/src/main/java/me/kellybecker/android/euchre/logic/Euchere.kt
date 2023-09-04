@@ -10,6 +10,7 @@ import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readText
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.consumeEach
@@ -145,7 +146,6 @@ class WebSocket {
         send(WSData(methodID = "#connect"))
 
         onReceive { _: String, obj: WSData ->
-            Log.d("WS_RECEIVER", receiverFunc.toString())
             wsMessage(obj, obj.relayed)
             receiverFlow.emit(obj)
         }
@@ -222,6 +222,10 @@ class WebSocket {
     fun onMessage(onMsg: (it: WSData, relayed: Boolean) -> Unit) = receiverFunc.add(onMsg)
     fun onClose(onCls: (Boolean) -> Unit) = closingFunc.add(onCls)
 
+    fun launch(block: suspend CoroutineScope.() -> Unit) {
+        if(isConnected()) session.launch(block = block)
+    }
+
     suspend fun await(
         fi: WSData,
         en: Map<String, Any?> = mapOf(),
@@ -259,7 +263,7 @@ class WebSocket {
         )
     }
 
-    suspend fun send(obj: WSData) {
+    suspend fun send(obj: WSData): WSData {
         Log.d("WS_SEND", "Object: $obj")
         val txt = Json.encodeToString(obj.copy(
             roomID = roomID, relayed = false,
@@ -275,6 +279,8 @@ class WebSocket {
         } else {
             Log.e("WS_SEND", "Client Uninitialized")
         }
+
+        return obj
     }
 }
 
@@ -553,13 +559,25 @@ class Game {
     }
 
     suspend fun phaseGoAlone(checkUser: suspend () -> Boolean) {
+        if(trump == "") return
+
         while(turn < 4) {
-            if(if(hands[whoseTurn()].playerType == 0) {
-                hands[whoseTurn()].shouldGoAlone()
-            } else { checkUser() }) {
-                goingAlone = whoseTurn()
-                break
+            var obj = WSData(
+                playerID = whoseTurn(),
+                methodID = "phaseGoAlone",
+            )
+
+            Log.d("EUCHRE_GOALONE", "PlayerType: ${hands[whoseTurn()].playerType}")
+
+            when(hands[whoseTurn()].playerType) {
+                0 -> obj = wsSend(obj.copy(boolean = hands[whoseTurn()].shouldGoAlone()))
+                1 -> obj = wsSend(obj.copy(boolean = checkUser()))
+                else -> obj = webSocket.await(obj, mapOf("waiting" to true))
             }
+
+            Log.d("EUCHRE_GOALONE", "Going Alone: $goingAlone")
+
+            if(obj.boolean) break
 
             turn++
         }
@@ -646,7 +664,9 @@ class Game {
                 if(data.boolean) { -1 } else { 0 }
             })
             "#connect" -> {
-                webSocket.session.launch {
+                webSocket.launch {
+                    delay(300)
+
                     // advertise our human
                     wsSend(WSData(
                         methodID = "aiOverride",
@@ -687,8 +707,9 @@ class Game {
                         hands[dealer].pickItUp(kitty)
                     }
 
-                    if(webSocket.isConnected()) {
-                        webSocket.session.launch { wsSend(data.copy(waiting = true, string = trump)) }
+                    webSocket.launch {
+                        delay(300)
+                        wsSend(data.copy(waiting = true, string = trump))
                     }
                 }
             }
@@ -703,18 +724,33 @@ class Game {
                         Log.d("EUCHRE_SELECTTRUMP","Trump Selected by ${whoseTurn()}: $trump")
                     }
 
-                    if(webSocket.isConnected()) {
-                        webSocket.session.launch { wsSend(data.copy(waiting = true, string = trump)) }
+                    webSocket.launch {
+                        delay(300)
+                        wsSend(data.copy(waiting = true, string = trump))
+                    }
+                }
+            }
+
+            "phaseGoAlone" -> {
+                if(!data.waiting) {
+                    val dest = if(relayed) { "Remote" } else { "Local" }
+                    Log.d("EUCHRE_GOALONE", "${dest} Go Alone: $data")
+
+                    if(data.boolean) goingAlone = data.playerID
+
+                    webSocket.launch {
+                        delay(300)
+                        wsSend(data.copy(waiting = true))
                     }
                 }
             }
         }
     }
 
-    suspend fun wsSend(data: WSData) {
+    suspend fun wsSend(data: WSData): WSData {
         val data = webSocket.wrapPlayer(data)
         webSocket.wsMessage(data, relayed = false)
-        webSocket.send(data)
+        return webSocket.send(data)
     }
 
     fun readyCheck(playerID: Int, boolean: Boolean): Boolean {
