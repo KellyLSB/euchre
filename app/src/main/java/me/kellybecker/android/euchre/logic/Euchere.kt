@@ -15,7 +15,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.KSerializer
@@ -231,21 +233,22 @@ class WebSocket {
         if(fi.methodID.substring(0, 1) != "@") send(fi.copy(methodID = "@" + fi.methodID))
 
         Log.d("WS_AWAIT", "Waiting for response... [${fi.methodID}:$en]")
-        while(true) {
-            val it = receiverFlow.first()
-            if(fi.playerID == it.playerID && fi.methodID == it.methodID) {
-                if(en.isEmpty() || en.map { m ->
-                    when(m.key) {
-                        "playerAlt" -> it.playerAlt == m.value
-                        "boolean" -> it.boolean == m.value
-                        else -> true
-                    }
-                }.reduce { acc, b -> acc && b }) {
-                    Log.d("WS_AWAIT", "Response: $it")
-                    return it
+
+        val obj = receiverFlow.filter {
+            fi.playerID == it.playerID && fi.methodID == it.methodID
+        }.filter {
+            en.isEmpty() || en.map { m ->
+                when (m.key) {
+                    "playerAlt" -> it.playerAlt == m.value
+                    "boolean" -> it.boolean == m.value
+                    else -> true
                 }
-            }
-        }
+            }.reduce { acc, b -> acc && b }
+        }.first()
+
+        Log.d("WS_AWAIT", "Object: $obj")
+
+        return obj
     }
 
     fun wrapPlayer(obj: WSData): WSData {
@@ -479,24 +482,33 @@ class Game {
     suspend fun phasePickItUp(checkUser: suspend () -> Boolean) {
         // Select trump by dealer/kitty exchange
         while(turn < 4) {
-            if(
-                if(hands[whoseTurn()].playerType == 0) {
-                    val check = hands[whoseTurn()].aiShouldPickItUp(kitty)
-                    Log.d("EUCHRE", "AI: Should pick it up $check")
-                    check
-                } else {
-                    val check = checkUser()
-                    Log.d("EUCHRE", "USER: Should pick it up: $check")
-                    check
+            var obj = WSData(
+                playerID = whoseTurn(),
+                methodID = "phasePickItUp",
+            )
+
+            Log.d("EUCHRE_PICKITUP", "PlayerType: ${hands[whoseTurn()].playerType}")
+
+            when(hands[whoseTurn()].playerType) {
+                // AI/Local Turn
+                0 -> {
+                    obj = obj.copy(boolean = hands[whoseTurn()].aiShouldPickItUp(kitty))
+                    Log.d("EUCHRE_PICKITUP", "AI PickUp: ${obj.boolean}")
+                    wsSend(obj)
                 }
-            ) {
-                if(kitty[0].suit != "T") {
-                    trump = "${kitty[0].suit}"
-                    println("${whoseTurn()} told the dealer to pick up Kitty card\nTrump Selected by Kitty: $trump")
+                1 -> {
+                    obj = obj.copy(boolean = checkUser())
+                    Log.d("EUCHRE_PICKITUP", "User PickUp: ${obj.boolean}")
+                    wsSend(obj)
                 }
-                hands[dealer].pickItUp(kitty)
-                break
+                // Remote Turn
+                else -> {
+                    obj = webSocket.await(obj.copy(playerID = 4))
+                    Log.d("EUCHRE_PICKITUP", "Remote PickUp: ${obj.boolean}")
+                }
             }
+
+            if(obj.boolean) break
             turn++
         }
         turn = 0
@@ -645,6 +657,23 @@ class Game {
 
                 val dest = if (relayed) { "Remote" } else { "Local" }
                 Log.d("EUCHRE_DEAL", "$dest Deal; WSData: $data")
+            }
+
+            "phasePickItUp" -> {
+                if(data.playerID < 4) {
+                    val dest = if (relayed) { "Remote" } else { "Local" }
+                    Log.d("EUCHRE_PICKITUP", "${dest} PickUp: ${data.boolean}")
+
+                    if (data.boolean) {
+                        if (kitty[0].suit != "T") {
+                            trump = "${kitty[0].suit}"
+                            println("${whoseTurn()} told the dealer to pick up Kitty card\nTrump Selected by Kitty: $trump")
+                        }
+                        hands[dealer].pickItUp(kitty)
+                    }
+
+                    webSocket.session.launch { wsSend(data.copy(playerID = 4)) }
+                }
             }
         }
     }

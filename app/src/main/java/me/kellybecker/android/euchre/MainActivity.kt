@@ -111,6 +111,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
             when(it.methodID) {
                 "claimHost" -> if(relayed) showReady = true
                 "phaseDeal" -> if(it.boolean) recompose()
+                "phasePickItUp" -> if(it.boolean) recompose()
                 else -> {}
             }
         }
@@ -144,14 +145,11 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
         }
         println("CUT")
         gameInstance.phaseDeal()
-
-    //        gameInstance.deal()
-//
-//        // Pick It Up to Select Trump
-//        gameInstance.phasePickItUp {
-//            showPickItUp = true
-//            flowPickItUp.first()
-//        }
+        println("DEALT")
+        gameInstance.phasePickItUp {
+            showPickItUp = true
+            flowPickItUp.first()
+        }
 //
 //        // Select Trump
 //        if(gameInstance.trump() == "") {
