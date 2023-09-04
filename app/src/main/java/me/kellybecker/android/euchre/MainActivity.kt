@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -112,6 +113,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
                 "claimHost" -> if(relayed) showReady = true
                 "phaseDeal" -> if(it.boolean) recompose()
                 "phasePickItUp" -> if(it.boolean) recompose()
+                "phaseSelectTrump" -> if(it.string != "") recompose()
                 else -> {}
             }
         }
@@ -149,6 +151,10 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
         gameInstance.phasePickItUp {
             showPickItUp = true
             flowPickItUp.first()
+        }
+        gameInstance.phaseSelectTrump {
+            showSelectTrump = true
+            flowSelectTrump.first()
         }
 //
 //        // Select Trump

@@ -95,6 +95,7 @@ data class WSData(
     val roomID: String = "",
     val loopback: Boolean = false,
     val relayed: Boolean = false,
+    val waiting: Boolean = false,
     var boolean: Boolean = false,
     var string: String = "",
     var stack: Stack = Stack(),
@@ -500,7 +501,7 @@ class Game {
                 }
                 // Remote Turn
                 else -> {
-                    obj = webSocket.await(obj.copy(playerID = 4))
+                    obj = webSocket.await(obj, mapOf("waiting" to true))
                     Log.d("EUCHRE_PICKITUP", "Remote PickUp: ${obj.boolean}")
                 }
             }
@@ -513,19 +514,36 @@ class Game {
 
     suspend fun phaseSelectTrump(checkUser: suspend () -> String) {
         while(trump == "" && turn < 4) {
-            trump = if(hands[whoseTurn()].playerType == 0) {
-                "${hands[whoseTurn()].selectTrump()}"
-            } else {
-                "${checkUser()}"
+            var obj = WSData(
+                playerID = whoseTurn(),
+                methodID = "phaseSelectTrump",
+            )
+
+            Log.d("EUCHRE_SELECTTRUMP", "PlayerType: ${hands[whoseTurn()].playerType}")
+
+            when(hands[whoseTurn()].playerType) {
+                // AI/Local Turn
+                0 -> {
+                    obj = obj.copy(string = hands[whoseTurn()].selectTrump())
+                    Log.d("EUCHRE_SELECTTRUMP", "AI Select Trump: ${obj.string}")
+                    wsSend(obj)
+                }
+                1 -> {
+                    obj = obj.copy(string = checkUser())
+                    Log.d("EUCHRE_SELECTTRUMP", "User Select Trump: ${obj.string}")
+                    wsSend(obj)
+                }
+                // Remote Turn
+                else -> {
+                    obj = webSocket.await(obj, mapOf("waiting" to true))
+                    Log.d("EUCHRE_SELECTTRUMP", "Remote Select Trump: ${obj.string}")
+                }
             }
 
-            if(turn == 3 && trump == "") {
-                Log.d("EUCHRE","Trump wasn't selected")
-                break
-            }
+            if(obj.string != "") break
 
-            if(trump != "") {
-                Log.d("EUCHRE","Trump Selected by ${whoseTurn()}: $trump")
+            if(turn == 3 && obj.string == "") {
+                Log.d("EUCHRE_SELECTTRUMP","Trump wasn't selected")
                 break
             }
 
@@ -652,17 +670,17 @@ class Game {
                     this.hands[data.playerAlt].fromStack(data.stack)
                 }
 
-                val dest = if (relayed) { "Remote" } else { "Local" }
+                val dest = if(relayed) { "Remote" } else { "Local" }
                 Log.d("EUCHRE_DEAL", "$dest Deal; WSData: $data")
             }
 
             "phasePickItUp" -> {
-                if(data.playerID < 4) {
-                    val dest = if (relayed) { "Remote" } else { "Local" }
+                if(!data.waiting) {
+                    val dest = if(relayed) { "Remote" } else { "Local" }
                     Log.d("EUCHRE_PICKITUP", "${dest} PickUp: ${data.boolean}")
 
-                    if (data.boolean) {
-                        if (kitty[0].suit != "T") {
+                    if(data.boolean) {
+                        if(kitty[0].suit != "T") {
                             trump = "${kitty[0].suit}"
                             println("${whoseTurn()} told the dealer to pick up Kitty card\nTrump Selected by Kitty: $trump")
                         }
@@ -670,7 +688,23 @@ class Game {
                     }
 
                     if(webSocket.isConnected()) {
-                        webSocket.session.launch { wsSend(data.copy(playerID = 4)) }
+                        webSocket.session.launch { wsSend(data.copy(waiting = true, string = trump)) }
+                    }
+                }
+            }
+
+            "phaseSelectTrump" -> {
+                if(!data.waiting) {
+                    val dest = if(relayed) { "Remote" } else { "Local" }
+                    Log.d("EUCHRE_SELECTTRUMP", "${dest} Select Trump: ${data.string}")
+
+                    if(data.string != "") {
+                        trump = data.string
+                        Log.d("EUCHRE_SELECTTRUMP","Trump Selected by ${whoseTurn()}: $trump")
+                    }
+
+                    if(webSocket.isConnected()) {
+                        webSocket.session.launch { wsSend(data.copy(waiting = true, string = trump)) }
                     }
                 }
             }
