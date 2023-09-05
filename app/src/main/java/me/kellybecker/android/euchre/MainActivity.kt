@@ -40,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -109,11 +108,13 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
         // UI Events unlrelated to player
         gameInstance.webSocket.onMessage { it, relayed ->
             Log.d("OnMsg", "Relayed: $relayed, $it")
+
             when(it.methodID) {
                 "claimHost" -> if(relayed) showReady = true
                 "phaseDeal" -> if(it.boolean) recompose()
                 "phasePickItUp" -> if(it.boolean) recompose()
                 "phaseSelectTrump" -> if(it.string != "") recompose()
+                "phasePlay" -> if(it.card != Card("", "")) recompose()
                 else -> {}
             }
         }
@@ -160,25 +161,10 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
             showGoAlone = true
             flowGoAlone.first()
         }
-//
-//        if(gameInstance.trump() != "") {
-//            gameInstance.phaseGoAlone {
-//                coroutineScope {
-//                    showGoAlone = true
-//                    flowGoAlone.first()
-//                }
-//            }
-//
-//            gameInstance.phasePlay {
-//                coroutineScope {
-//                    showYourTurn = true
-//                    flowYourTurn.first()
-//                }
-//            }
-//        } else {
-//            gameInstance.reset()
-//            // Redeal...
-//        }
+        gameInstance.phasePlay {
+            showYourTurn = true
+            flowYourTurn.first()
+        }
         // gameInstance.reset()
         // loop back to the beginning
         // show the points for the tricks won

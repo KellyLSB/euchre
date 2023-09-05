@@ -585,29 +585,37 @@ class Game {
     }
 
     suspend fun phasePlay(checkUser: suspend () -> Card) {
+        if(trump == "") return
+
         while(trick < 5) {
-            Log.d("EUCHRE", "Trick $trick")
+            Log.d("EUCHRE_PLAY", "Trick $trick")
+
             while (turn < 4) {
-                Log.d("EUCHRE", "\tTurn $turn")
                 // Skip player if partner is going alone.
-                if (goingAlone > -1 && goingAlone != whoseTurn()) {
-                    if (goingAlone % 2 == whoseTurn() % 2) {
-                        Log.d("EUCHRE", "$goingAlone is going alone.")
+                if(goingAlone > -1 && goingAlone != whoseTurn()) {
+                    if(goingAlone % 2 == whoseTurn() % 2) {
+                        Log.d("EUCHRE_PLAY", "$goingAlone is going alone.")
                         turn++
                         continue
                     }
                 }
 
-                if (hands[whoseTurn()].playerType == 0) {
-                    //delay(500)
-                    hands[whoseTurn()].play(trickCards)
-                } else {
-                    val card = checkUser()
-                    hands[whoseTurn()].remove(card)
-                    trickCards.play(whoseTurn(), card)
+                var obj = WSData(
+                    playerID = whoseTurn(),
+                    methodID = "phasePlay",
+                )
+
+                Log.d("EUCHRE_PLAY", "Player: ${whoseTurn()}")
+                Log.d("EUCHRE_PLAY", "PlayerType: ${hands[whoseTurn()].playerType}")
+
+                when(hands[whoseTurn()].playerType) {
+                    0 -> obj = wsSend(obj.copy(card = hands[whoseTurn()].play(trickCards)))
+                    1 -> obj = wsSend(obj.copy(card = checkUser()))
+                    else -> obj = webSocket.await(obj, mapOf("waiting" to true))
                 }
 
-                Log.d("EUCHRE","\t${trickCards}")
+                Log.d("EUCHRE_PLAY", "Object: $obj")
+
                 turn++
             }
             turn = 0
@@ -737,6 +745,19 @@ class Game {
                     Log.d("EUCHRE_GOALONE", "${dest} Go Alone: $data")
 
                     if(data.boolean) goingAlone = data.playerID
+
+                    webSocket.launch {
+                        delay(300)
+                        wsSend(data.copy(waiting = true))
+                    }
+                }
+            }
+
+            "phasePlay" -> {
+                if(!data.waiting) {
+                    val dest = if(relayed) { "Remote" } else { "Local" }
+                    Log.d("EUCHRE_PLAY", "${dest} Play: $data")
+                    hands[data.playerID].playCard(trickCards, data.card)
 
                     webSocket.launch {
                         delay(300)
@@ -1077,7 +1098,11 @@ class Hand(val hand: Int) : Stack() {
         return ""
     }
 
-    fun play(trick: Trick) {
+    fun playCard(trick: Trick, card: Card) {
+        if(remove(card)) trick.play(this.hand, card)
+    }
+
+    fun play(trick: Trick): Card {
         //return @TODO query user input OR
         //@TODO chance of randomness maybe
         // a human might save a higher scoring card
@@ -1088,26 +1113,19 @@ class Hand(val hand: Int) : Stack() {
                 // bestCard > ourCards[0]
                 if(trick.compareCards(bestCard, ourCards[0]) > 0) {
                     println("Their card is better")
-                    remove(ourCards.last())
-                    trick.play(this.hand, ourCards.last())
+                    return ourCards.last()
                 } else {
                     println("Our cards are better")
-                    remove(ourCards.first())
-                    trick.play(this.hand, ourCards.first())
+                    return ourCards.first()
                 }
             } else {
                 println("Can't follow suit")
                 val ourCards = throwCards()
-                remove(ourCards.first())
-                trick.play(this.hand, ourCards.first())
+                return ourCards.first()
             }
         } else {
-            val perfectGame = this.sortedBy {
-                scoreOrderIndex(it)
-            }
-
-            remove(perfectGame[0])
-            trick.play(this.hand, perfectGame[0])
+            // Perfect Game
+            return sortedBy{ scoreOrderIndex(it) }.first()
         }
     }
 
