@@ -34,6 +34,7 @@ import java.net.URI
 import java.util.Collections
 
 var trump: String = ""
+var maker: Int = -1
 
 /**
  * Check if suit is a bower suit
@@ -623,14 +624,19 @@ class Game {
             }
             turn = 0
 
-            Log.d("TRICKCARDS", "${trickCards}")
-            val winningHand = trickCards.winningHand()
-            hands[winningHand].tricks.add(trickCards)
+            Log.d("EUCHRE_DISCARD", "trickCard: ${trickCards.map{ it.value }}")
+            Log.d("EUCHRE_DISCARD", "deck(${deck.size}): ${deck}")
+            deck.addAll(trickCards.map{ it.value })
+            hands[trickCards.winningHand()].tricks.add(trickCards)
             delay(1500)
             trickCards = Trick()
             trick++
         }
 
+
+        Log.d("EUCHRE_DISCARD", "kitty: ${kitty}")
+        Log.d("EUCHRE_DISCARD", "deck(${deck.size}): ${deck}")
+        deck.addAll(kitty)
         trick = 0
     }
 
@@ -645,15 +651,20 @@ class Game {
     fun nextHand() {
         dealer++
         turn = 0
+        maker = -1
         trump = ""
         goingAlone = -1
 
+        Log.d("EUCHRE_NEXT", "Deck(${deck.size}): ${deck}")
+
         deck.fromList(
-            *this.hands.map{ it.tricks.map{
-                it.values.toList()
-            }.flatten() }.toTypedArray(),
-            this.kitty.toList()
+            // this currently selects all the cards from the score...
+            // massive bug
+            this.hands.flatten(),
+            deck.toList(),
         )
+
+        Log.d("EUCHRE_NEXT", "Deck(${deck.size}): ${deck}")
 
         hands.forEach{ it.reset() }
         kitty.reset()
@@ -708,7 +719,7 @@ class Game {
 
                 val dest = if(relayed) { "Remote" } else { "Local" }
                 Log.d("EUCHRE_DEAL", "$dest Deal; WSData: $data")
-            }
+            } else { this.deck.removeAll{true} }
 
             "phasePickItUp" -> {
                 if(!data.waiting) {
@@ -737,6 +748,7 @@ class Game {
 
                     if(data.string != "") {
                         trump = data.string
+                        maker = data.playerID % 2
                         Log.d("EUCHRE_SELECTTRUMP","Trump Selected by ${whoseTurn()}: $trump")
                     }
 
@@ -887,7 +899,7 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
     }
 
     fun bestPlay(): Pair<Int, Card> {
-        val list = Collections.synchronizedMap(this).map {
+        val list = Collections.synchronizedMap(this).toMap().map {
             Pair(it.key, Pair(it.value, scoreOrderIndex(it.value)))
         }.sortedBy {
             it.second.second
