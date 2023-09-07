@@ -1071,7 +1071,7 @@ class Hand(val hand: Int) : Stack() {
 
     fun calculateGoAlone(): List<Pair<String, Pair<Int, Int>>> {
         return calculate(trump).filterValues { it.first > 2 }  // 3 or more cards in a suit
-                               .filterValues { it.second < 7 } // Scoring 6 or less
+                               .filterValues { it.second < 6 } // Scoring 5 or less
                                .filterValues { it.second > 2 } // Scoring 3 or more
                                .toList().sortedBy { (_, v) -> v.first }
     }
