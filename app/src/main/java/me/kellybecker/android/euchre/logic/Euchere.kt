@@ -147,7 +147,6 @@ class WebSocket {
 
         onReceive { _: String, obj: WSData ->
             wsMessage(obj, obj.relayed)
-            receiverFlow.emit(obj)
         }
     }
 
@@ -218,7 +217,10 @@ class WebSocket {
         closingFunc.forEach { it(isConnected()) }
     }
 
-    suspend fun wsMessage(obj: WSData, relayed: Boolean = true) { receiverFunc.forEach{ it(obj, relayed) } }
+    suspend fun wsMessage(obj: WSData, relayed: Boolean = true) {
+        receiverFlow.emit(obj.copy(relayed = relayed))
+        receiverFunc.forEach{ it(obj, relayed) }
+    }
     fun onMessage(onMsg: (it: WSData, relayed: Boolean) -> Unit) = receiverFunc.add(onMsg)
     fun onClose(onCls: (Boolean) -> Unit) = closingFunc.add(onCls)
 
@@ -325,8 +327,9 @@ class Game {
      * Deal out the cards
      */
     fun deal() {
-        var hand = dealer
+        var hand = dealer % 4
         var cards = 2
+
         while(deck.size > 0) {
             if(hands[hand].size < 5) {
                 for(i in 0..cards) {
@@ -338,11 +341,11 @@ class Game {
                 if(hand < 3) {
                     hand++
                     when(cards) {
-                        1 -> cards = 2
-                        2 -> cards = 1
+                        1 -> cards++
+                        2 -> cards--
                     }
                 } else {
-                    hand = 0
+                    hand = dealer % 4
                 }
             } else {
                 while(deck.size > 0) {
@@ -462,7 +465,7 @@ class Game {
             methodID = "phaseDeal",
         )
 
-        Log.d("EUCHRE_DEAL", "PlayerType: ${hands[(dealer + 1) % 4].playerType}")
+        Log.d("EUCHRE_DEAL", "PlayerType: ${hands[dealer % 4].playerType}")
 
         when(hands[dealer % 4].playerType) {
             // AI/Local Turn
@@ -634,20 +637,19 @@ class Game {
     }
 
     fun nextHand() {
-        if(dealer < 3) {
-            dealer++
-        } else {
-            dealer = 0
-        }
-
+        dealer++
         turn = 0
         trump = ""
         goingAlone = -1
 
-        deck.reset()
-        for(hand in hands) {
-            hand.reset()
-        }
+        deck.fromList(
+            *this.hands.map{ it.tricks.map{
+                it.values.toList()
+            }.flatten() }.toTypedArray(),
+            this.kitty.toList()
+        )
+
+        hands.forEach{ it.reset() }
         kitty.reset()
     }
 
@@ -712,12 +714,12 @@ class Game {
                             trump = "${kitty[0].suit}"
                             println("${whoseTurn()} told the dealer to pick up Kitty card\nTrump Selected by Kitty: $trump")
                         }
-                        hands[dealer].pickItUp(kitty)
+                        hands[dealer % 4].pickItUp(kitty)
                     }
 
                     webSocket.launch {
                         delay(300)
-                        wsSend(data.copy(waiting = true, string = trump))
+                        wsSend(data.copy(waiting = true, string = trump), false)
                     }
                 }
             }
@@ -734,7 +736,7 @@ class Game {
 
                     webSocket.launch {
                         delay(300)
-                        wsSend(data.copy(waiting = true, string = trump))
+                        wsSend(data.copy(waiting = true, string = trump), false)
                     }
                 }
             }
@@ -748,7 +750,7 @@ class Game {
 
                     webSocket.launch {
                         delay(300)
-                        wsSend(data.copy(waiting = true))
+                        wsSend(data.copy(waiting = true), false)
                     }
                 }
             }
@@ -761,17 +763,18 @@ class Game {
 
                     webSocket.launch {
                         delay(300)
-                        wsSend(data.copy(waiting = true))
+                        wsSend(data.copy(waiting = true), false)
                     }
                 }
             }
         }
     }
 
-    suspend fun wsSend(data: WSData): WSData {
+    suspend fun wsSend(data: WSData, relay: Boolean = true): WSData {
         val data = webSocket.wrapPlayer(data)
         webSocket.wsMessage(data, relayed = false)
-        return webSocket.send(data)
+        if(relay) return webSocket.send(data)
+        else return data
     }
 
     fun readyCheck(playerID: Int, boolean: Boolean): Boolean {
@@ -879,6 +882,7 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
     }
 
     fun bestPlay(): Pair<Int, Card> {
+        println("${toList().toString()}")
         return toList().sortedBy { (_, card) ->
             scoreOrderIndex(card)
         }[0]
@@ -905,6 +909,9 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
     override fun toString(): String {
         return toMap().toString()
     }
+
+    fun toStack(): Stack = Stack(toCardList())
+    fun toCardList() = this.values.toList()
 
     fun compareCards(a: Card, b: Card): Int {
         return a.suitedCompareTo(suit, b)
@@ -934,8 +941,8 @@ object StackSerializer : KSerializer<List<Card>> {
  */
 @Serializable(with = StackSerializer::class)
 open class Stack() : MutableList<Card> by mutableListOf() {
-    constructor(ni: List<Card>) : this() {
-        this.fromList(ni)
+    constructor(vararg ni: List<Card>) : this() {
+        this.fromList(*ni)
     }
 
     /**
@@ -1015,13 +1022,17 @@ open class Stack() : MutableList<Card> by mutableListOf() {
         return toMutableList().toString()
     }
 
-    open fun fromStack(ni: Stack): Stack {
-        return fromList(ni.toList())
+    open fun fromStack(vararg ni: Stack): Stack {
+        return fromList(*ni.map{ it.toList() }.toTypedArray())
     }
 
-    open fun fromList(ni: List<Card>): Stack {
+    open fun fromList(vararg ni: List<Card>): Stack {
         this.removeAll{true}
-        this.addAll(ni)
+        this.addAll(ni.reduce{ acc, cards ->
+            val acc = acc.toMutableList()
+            acc.addAll(cards)
+            acc.toList()
+        })
         return this
     }
 
@@ -1129,8 +1140,8 @@ class Hand(val hand: Int) : Stack() {
         }
     }
 
-    override fun fromStack(ni: Stack): Hand {
-        super.fromStack(ni)
+    override fun fromStack(vararg ni: Stack): Hand {
+        super.fromStack(*ni)
         return this
     }
 }
@@ -1152,8 +1163,8 @@ class Deck : Stack() {
         add(Card("T", "T"))
     }
 
-    override fun fromStack(ni: Stack): Deck {
-        super.fromStack(ni)
+    override fun fromStack(vararg ni: Stack): Deck {
+        super.fromStack(*ni)
         return this
     }
 }
