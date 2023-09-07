@@ -31,6 +31,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonContentPolymorphicSerializer
 import kotlinx.serialization.json.JsonElement
 import java.net.URI
+import java.util.Collections
 
 var trump: String = ""
 
@@ -327,26 +328,25 @@ class Game {
      * Deal out the cards
      */
     fun deal() {
-        var hand = dealer % 4
+        var hand = dealer
+        var loop = 0
         var cards = 2
 
         while(deck.size > 0) {
-            if(hands[hand].size < 5) {
+            if(hands[hand % 4].size < 5) {
                 for(i in 0..cards) {
-                    if(hands[hand].size < 5) {
-                        hands[hand].add(deck.removeFirst())
+                    if(hands[hand % 4].size < 5) {
+                        hands[hand % 4].add(deck.removeFirst())
                     }
                 }
 
-                if(hand < 3) {
-                    hand++
-                    when(cards) {
-                        1 -> cards++
-                        2 -> cards--
-                    }
-                } else {
-                    hand = dealer % 4
+                if((loop % 4) < 3) when(cards) {
+                    1 -> cards++
+                    2 -> cards--
                 }
+
+                hand++
+                loop++
             } else {
                 while(deck.size > 0) {
                     kitty.add(deck.removeFirst())
@@ -442,7 +442,7 @@ class Game {
             else -> {
                 val obj = webSocket.await(obj)
                 Log.d("EUCHRE_CUT", "Remote Cut; WSData: $obj")
-                this.deck.fromStack(obj.stack)
+                if(obj.boolean) this.deck.fromStack(obj.stack)
             }
         }
 
@@ -623,13 +623,19 @@ class Game {
             }
             turn = 0
 
-            hands[trickCards.winningHand()].tricks.add(trickCards)
+            Log.d("TRICKCARDS", "${trickCards}")
+            val winningHand = trickCards.winningHand()
+            hands[winningHand].tricks.add(trickCards)
             delay(1500)
             trickCards = Trick()
             trick++
         }
 
         trick = 0
+    }
+
+    suspend fun phaseRecollect() {
+        nextHand()
     }
 
     fun play() {
@@ -873,7 +879,6 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
     var suit: String = ""
 
     fun winningHand(): Int {
-        println("\tBestPlay: ${bestPlay()}")
         return bestPlay().first
     }
 
@@ -882,9 +887,19 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
     }
 
     fun bestPlay(): Pair<Int, Card> {
-        return toList().sortedBy { (_, card) ->
-            scoreOrderIndex(card)
-        }[0]
+        val list = Collections.synchronizedMap(this).map {
+            Pair(it.key, Pair(it.value, scoreOrderIndex(it.value)))
+        }.sortedBy {
+            it.second.second
+        }.map {
+            Pair(it.first, it.second.first)
+        }
+
+        if(list.size < 1) {
+            Log.e("BESTPLAY", "${this}\n${Throwable().stackTraceToString()}")
+            return Pair(-1, Card("", ""))
+        }
+        else return list.first()
     }
 
     fun play(hand: Int, card: Card): Card? {

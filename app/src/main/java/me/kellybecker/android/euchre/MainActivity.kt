@@ -140,35 +140,39 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
 
         gameInstance.phaseReady()
         println("READIED")
-        gameInstance.phaseShuffle()
-        println("SHUFFLED")
-        gameInstance.phaseCut {
-            showCutDeck = true
-            flowCutDeck.first()
+
+        while(true) {
+            gameInstance.phaseShuffle()
+            println("SHUFFLED")
+            gameInstance.phaseCut {
+                showCutDeck = true
+                flowCutDeck.first()
+            }
+            println("CUT")
+            gameInstance.phaseDeal()
+            println("DEALT")
+            gameInstance.phasePickItUp {
+                showPickItUp = true
+                flowPickItUp.first()
+            }
+            gameInstance.phaseSelectTrump {
+                showSelectTrump = true
+                flowSelectTrump.first()
+            }
+            gameInstance.phaseGoAlone {
+                showGoAlone = true
+                flowGoAlone.first()
+            }
+            gameInstance.phasePlay {
+                showYourTurn = true
+                flowYourTurn.first()
+            }
+
+            showCutDeck = false
+            showPickItUp = false
+            showSelectTrump = false
+            gameInstance.phaseRecollect()
         }
-        println("CUT")
-        gameInstance.phaseDeal()
-        println("DEALT")
-        gameInstance.phasePickItUp {
-            showPickItUp = true
-            flowPickItUp.first()
-        }
-        gameInstance.phaseSelectTrump {
-            showSelectTrump = true
-            flowSelectTrump.first()
-        }
-        gameInstance.phaseGoAlone {
-            showGoAlone = true
-            flowGoAlone.first()
-        }
-        gameInstance.phasePlay {
-            showYourTurn = true
-            flowYourTurn.first()
-        }
-        // gameInstance.reset()
-        // loop back to the beginning
-        // show the points for the tricks won
-        // across all dealt hands.
     }
 
     Log.d("EUCHRE", gameInstance.hands.toString())
