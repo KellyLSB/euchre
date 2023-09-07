@@ -882,7 +882,6 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
     }
 
     fun bestPlay(): Pair<Int, Card> {
-        println("${toList().toString()}")
         return toList().sortedBy { (_, card) ->
             scoreOrderIndex(card)
         }[0]
@@ -911,7 +910,7 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
     }
 
     fun toStack(): Stack = Stack(toCardList())
-    fun toCardList() = this.values.toList()
+    fun toCardList(): List<Card> = this.values.toList()
 
     fun compareCards(a: Card, b: Card): Int {
         return a.suitedCompareTo(suit, b)
@@ -998,12 +997,12 @@ open class Stack() : MutableList<Card> by mutableListOf() {
         return tmp
     }
     fun shuffleCards() {
-        when((0..5).random()) {
-            0 -> shuffleA(2, 3)
-            1 -> shuffleA(2, 2)
-            2 -> shuffleA(2, 2)
-            3 -> shuffleA(3, 1)
-            4 -> shuffleA(2, (1..3).random())
+        when((0..6).random()) {
+            0 -> shuffleA(2, (1..3).random())
+            in 1..2 -> shuffleA(2, 2)
+            3 -> shuffleA(2, 3)
+            4 -> shuffleA(3, 1)
+            5 -> shuffleB()
             else -> shuffle()
         }
     }
@@ -1016,6 +1015,25 @@ open class Stack() : MutableList<Card> by mutableListOf() {
             removeAll { true }
             addAll(tmp.flatten())
         }
+    }
+
+    fun shuffleB() {
+        val tmp: MutableList<Card> = mutableListOf()
+        while(size > 0) {
+            val rnd = (0..(size - 1)).random()
+            val cnt = (1..3).random()
+
+            val tmp2 = if(rnd + cnt > size) {
+                subList(rnd, size)
+            } else {
+                subList(rnd, rnd + cnt)
+            }
+
+            tmp.addAll(tmp2.toList())
+            removeAll(tmp2.toList())
+        }
+
+        addAll(tmp)
     }
 
     override fun toString(): String {
