@@ -521,14 +521,26 @@ fun CardTable(
         }
 
         Row {
+            Column {
+                Text("Player: 0/2")
+                Text("${gameInstance.scoreA}")
+            }
+            Column {
+                Text("Player: 1/3")
+                Text("${gameInstance.scoreB}")
+            }
+        }
+
+        Row {
             gameInstance.hands.forEach { hand ->
                 Column {
                     Text("Player ${hand.hand}:")
                     hand.tricks.forEach { trick ->
                         Column(modifier = Modifier.border(BorderStroke(1.dp, Color.Black))) {
-                            trick.forEach { (_, card) ->
+                            trick.forEach { (player, card) -> Row {
+                                Text("$player:")
                                 GameCard(card.suit, card.card)
-                            }
+                            } }
                         }
                     }
                 }

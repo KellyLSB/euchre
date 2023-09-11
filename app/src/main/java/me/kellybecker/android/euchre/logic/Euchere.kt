@@ -299,6 +299,10 @@ class Game {
     )
     val kitty: Stack = Stack()
 
+    // Score
+    var scoreA: Int = 0
+    var scoreB: Int = 0
+
     // OpenHand
     var openHand: Boolean = true
 
@@ -624,9 +628,12 @@ class Game {
             }
             turn = 0
 
+            // Discard played cards for reshuffle
             Log.d("EUCHRE_DISCARD", "trickCard: ${trickCards.map{ it.value }}")
             Log.d("EUCHRE_DISCARD", "deck(${deck.size}): ${deck}")
             deck.addAll(trickCards.map{ it.value })
+
+            // Remember who won which tricks
             hands[trickCards.winningHand()].tricks.add(trickCards)
             delay(1500)
             trickCards = Trick()
@@ -641,6 +648,48 @@ class Game {
     }
 
     suspend fun phaseRecollect() {
+        val makers: MutableList<Trick> = mutableListOf()
+        val defend: MutableList<Trick> = mutableListOf()
+
+        hands.forEach { hand ->
+            hand.tricks.forEach { trick ->
+                if(trick.winningHand() % 2 == maker) {
+                    makers.add(trick)
+                } else {
+                    defend.add(trick)
+                }
+            }
+
+            hands[hand.hand].tricks.removeAll{true}
+        }
+
+
+        Log.d("EUCHRE_SCORING", "Makers: ${makers.toString()}")
+        Log.d("EUCHRE_SCORING", "Defend: ${defend.toString()}")
+
+        Log.d("EUCHRE_SCORING", "GoingAlone: ${goingAlone}")
+        Log.d("EUCHRE_SCORING", "Maker: ${maker}")
+
+        when(makers.size) {
+            in 3..4 -> if(maker == 0) { scoreA++ } else { scoreB++ }
+            5 -> if(goingAlone > -1 && goingAlone % 2 == maker) {
+                if(maker == 0) { scoreA += 5 } else { scoreB += 5 }
+            } else {
+                if(maker == 0) { scoreA += 2 } else { scoreB += 2 }
+            }
+        }
+
+        when(defend.size) {
+            in 3..5 -> if(goingAlone > -1 && goingAlone % 2 != maker) {
+                if(maker != 0) { scoreA += 4 } else { scoreB += 4 }
+            } else {
+                if(maker != 0) { scoreA += 2 } else { scoreB += 2 }
+            }
+        }
+
+        Log.d("EUCHRE_SCORING", "ScoreA(0:2): ${scoreA}")
+        Log.d("EUCHRE_SCORING", "ScoreB(1:3): ${scoreB}")
+
         nextHand()
     }
 
@@ -658,8 +707,7 @@ class Game {
         Log.d("EUCHRE_NEXT", "Deck(${deck.size}): ${deck}")
 
         deck.fromList(
-            // this currently selects all the cards from the score...
-            // massive bug
+            // Prepend the remaining cards
             this.hands.flatten(),
             deck.toList(),
         )
@@ -729,6 +777,7 @@ class Game {
                     if(data.boolean) {
                         if(kitty[0].suit != "T") {
                             trump = "${kitty[0].suit}"
+                            maker = data.playerID % 2
                             println("${whoseTurn()} told the dealer to pick up Kitty card\nTrump Selected by Kitty: $trump")
                         }
                         hands[dealer % 4].pickItUp(kitty)
