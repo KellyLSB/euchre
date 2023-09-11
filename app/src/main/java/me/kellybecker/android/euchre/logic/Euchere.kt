@@ -1,5 +1,6 @@
 package me.kellybecker.android.euchre.logic
 
+import android.content.Context
 import android.util.Log
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
@@ -30,7 +31,9 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonContentPolymorphicSerializer
 import kotlinx.serialization.json.JsonElement
+import java.io.File
 import java.net.URI
+import java.security.MessageDigest
 import java.util.Collections
 
 var trump: String = ""
@@ -1133,6 +1136,9 @@ open class Stack() : MutableList<Card> by mutableListOf() {
     open fun toStack(): Stack {
         return this
     }
+
+    open fun toJSON(): String = Json.encodeToString(this)
+    open fun fromJSON(txt: String) = fromStack(Json.decodeFromString<Stack>(txt))
 }
 
 class Hand(val hand: Int) : Stack() {
@@ -1243,8 +1249,16 @@ class Hand(val hand: Int) : Stack() {
 /**
  * Initialize a deck of cards
  */
-class Deck : Stack() {
+@Serializable
+class Deck(
+    var name: String = "horseshoe"
+) : Stack() {
     init { reset() }
+
+    constructor(context: Context, ni: String? = null) : this() {
+        this.loadDeck(context, name)
+    }
+
     override fun reset() {
         super.reset()
 
@@ -1255,6 +1269,46 @@ class Deck : Stack() {
         }
 
         add(Card("T", "T"))
+    }
+
+    fun saveDeck(context: Context, filename: String? = null) {
+        if(filename != null) name = filename
+        val filename = getFilename(name)
+        val json = toJSON()
+
+        Log.d("EUCHRE_SAVEDECK", "Filename: $filename")
+        Log.d("EUCHRE_SAVEDECK", "JSON: $json")
+
+        File(context.cacheDir, filename).writeText(json)
+    }
+
+    fun loadDeck(context: Context, filename: String? = null) {
+        if(filename != null) name = filename
+
+        val decks = context.cacheDir.list{ file, filename ->
+            filename.startsWith(name)
+        }.sorted()
+
+        Log.d("EUCHRE_LOADDECK", "Decks: $decks")
+
+        if(decks.size > 0) {
+            val file = File(context.cacheDir, decks.last())
+            val json = file.readText()
+
+            Log.d("EUCHRE_LOADDECK", "JSON: $json")
+
+            fromJSON(json)
+
+            Log.d("EUCHRE_LOADDECK", "Deck: $this")
+        }
+    }
+
+    fun getFilename(filename: String): String {
+        val datetime = (System.currentTimeMillis()/1000).toString()
+        val datahash = MessageDigest.getInstance("SHA-1")
+            .digest(toString().toByteArray()).toString()
+
+        return "${filename}_${datetime}_${datahash}.deck"
     }
 
     override fun fromStack(vararg ni: Stack): Deck {

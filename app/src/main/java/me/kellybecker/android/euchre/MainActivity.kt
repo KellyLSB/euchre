@@ -1,5 +1,6 @@
 package me.kellybecker.android.euchre
 
+import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -55,9 +57,15 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             scope = rememberCoroutineScope()
-            MainActivityContent(scope, gameInstance)
+
+            MainActivityContent(
+                applicationContext,
+                scope,
+                gameInstance
+            )
         }
     }
 
@@ -68,7 +76,11 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
+fun MainActivityContent(
+    context: Context,
+    scope: CoroutineScope,
+    gameInstance: Game
+) {
     // Recomposer
     var _recompose by remember { mutableStateOf(false) }
     val recompose: () -> Unit = { _recompose = !_recompose }
@@ -141,6 +153,8 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
         gameInstance.phaseReady()
         println("READIED")
 
+        gameInstance.deck.loadDeck(context, gameInstance.webSocket.roomID)
+
         while(true) {
             gameInstance.phaseShuffle()
             println("SHUFFLED")
@@ -172,6 +186,7 @@ fun MainActivityContent(scope: CoroutineScope, gameInstance: Game) {
             showPickItUp = false
             showSelectTrump = false
             gameInstance.phaseRecollect()
+            gameInstance.deck.saveDeck(context, gameInstance.webSocket.roomID)
         }
     }
 
@@ -624,7 +639,8 @@ fun GameCardPreview() {
 fun MainActivityPreview() {
     val gameInstance = Game()
     val scope = rememberCoroutineScope()
-    MainActivityContent(scope, gameInstance)
+    val context = LocalContext.current
+    MainActivityContent(context, scope, gameInstance)
 }
 
 // Sample coroutine code from Jacob
