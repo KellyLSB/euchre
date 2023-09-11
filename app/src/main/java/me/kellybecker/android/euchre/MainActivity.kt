@@ -43,6 +43,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.kellybecker.android.euchre.logic.Card
@@ -134,14 +135,14 @@ fun MainActivityContent(
         // Player Events
         // I'm the foreigner; receive my play
         scope.launch {
-            gameInstance.webSocket.receiverFlow.collect {
-                if (it.playerID == idPlayer) {
-                    when (it.methodID) {
-                        "@phaseReady" -> showReady = gameInstance.readyCheck(
-                            playerID = it.playerAlt,
-                            boolean = it.boolean,
-                        )
-                    }
+            gameInstance.webSocket.receiverFlow.filter{
+                it.playerID == gameInstance.webSocket.playerID
+            }.collect {
+                when (it.methodID) {
+                    "@phaseReady" -> showReady = gameInstance.readyCheck(
+                        playerID = it.playerAlt,
+                        boolean = it.boolean,
+                    )
                 }
             }
         }
