@@ -1077,12 +1077,12 @@ open class Stack() : MutableList<Card> by mutableListOf() {
     }
     fun shuffleCards() {
         when((0..6).random()) {
-            0 -> shuffleA(2, (1..3).random())
-            in 1..2 -> shuffleA(2, 2)
-            3 -> shuffleA(2, 3)
-            4 -> shuffleA(3, 1)
-            5 -> shuffleB()
-            else -> shuffle()
+            0 -> shuffleA(2, (1..3).random()) // &
+            in 1..2 -> shuffleA(2, 2) // Δ
+            3 -> shuffleA(2, 3) // ☆
+            4 -> shuffleA(3, 1) // ⛧
+            5 -> shuffleB() // ♡
+            else -> shuffle() // %
         }
     }
 
@@ -1098,6 +1098,8 @@ open class Stack() : MutableList<Card> by mutableListOf() {
 
     fun shuffleB() {
         val tmp: MutableList<Card> = mutableListOf()
+        var cycles: Int = 0
+
         while(size > 0) {
             val rnd = (0..(size - 1)).random()
             val cnt = (1..3).random()
@@ -1108,8 +1110,18 @@ open class Stack() : MutableList<Card> by mutableListOf() {
                 subList(rnd, rnd + cnt)
             }
 
-            tmp.addAll(tmp2.toList())
+            // /|||||\\//||\
+            if(cycles % 2 == 0) {
+                tmp.addAll(tmp2.toList())
+            } else {
+                val tmp3 = tmp2.toMutableList()
+                tmp3.addAll(tmp)
+                tmp.removeAll{true}
+                tmp.addAll(tmp3)
+            }
+
             removeAll(tmp2.toList())
+            cycles++
         }
 
         addAll(tmp)
