@@ -1075,6 +1075,8 @@ open class Stack() : MutableList<Card> by mutableListOf() {
         })
         return tmp
     }
+
+    // @TODO: Select shuffling technique?
     fun shuffleCards() {
         when((0..6).random()) {
             0 -> shuffleA(2, (1..3).random()) // &

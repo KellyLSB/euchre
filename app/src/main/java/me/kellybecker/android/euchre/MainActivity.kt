@@ -24,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -94,6 +96,9 @@ fun MainActivityContent(
     var showLobby by remember { mutableStateOf(true) }
     var showReady  by remember { mutableStateOf(false) }
     val flowReady  = remember { MutableSharedFlow<Boolean>() }
+
+    // Configuration
+    var openHand by remember { mutableStateOf(false) }
 
     // User Input Dialogs
     var showCutDeck by remember { mutableStateOf(false)   }
@@ -244,6 +249,14 @@ fun MainActivityContent(
                         }
                     )
                     Row {
+                        Text("OpenHand:")
+                        Switch(
+                            checked = openHand,
+                            onCheckedChange = {
+                                openHand = it
+                                gameInstance.openHand = it
+                            }
+                        )
                         if(!connected || connected && showReady) {
                             Button(onClick = {
                                 scope.launch {
@@ -285,6 +298,7 @@ fun MainActivityContent(
                         _recompose = _recompose,
                         recompose = recompose,
                         player = idPlayer,
+                        openHand = openHand,
                         gameInstance = gameInstance,
                         showCutDeck = showCutDeck,
                         onCutDeck = { cut ->
@@ -351,6 +365,7 @@ fun CardTable(
     _recompose: Boolean,
     recompose: () -> Unit,
     player: Int,
+    openHand: Boolean,
     gameInstance: Game,
     showCutDeck: Boolean,
     onCutDeck: (Boolean) -> Unit,
@@ -364,6 +379,7 @@ fun CardTable(
     onYourTurn: (Card) -> Unit,
 ) {
     if(_recompose) {}
+    if(openHand) {}
 
     if(showCutDeck) {
         AlertDialog(
@@ -404,6 +420,12 @@ fun CardTable(
                         gameInstance.kitty[0].suit,
                         gameInstance.kitty[0].card,
                     )
+                    Text("Our Hand:")
+                    CardsInHand(
+                        playerHand = player,
+                        gameInstance = gameInstance,
+                        openHand = true, onClick = {}
+                    )
                 }
             }
         )
@@ -429,6 +451,12 @@ fun CardTable(
                         GameCard("♦", onClick = { onSelectTrump("♦") })
                         GameCard("♣", onClick = { onSelectTrump("♣") })
                     }
+                    Text("Our Hand:")
+                    CardsInHand(
+                        playerHand = player,
+                        gameInstance = gameInstance,
+                        openHand = true, onClick = {}
+                    )
                 }
             }
         )
@@ -450,6 +478,12 @@ fun CardTable(
             title = {
                 Column {
                     Text("Should I Go Alone?")
+                    Text("Our Hand:")
+                    CardsInHand(
+                        playerHand = player,
+                        gameInstance = gameInstance,
+                        openHand = true, onClick = {}
+                    )
                 }
             }
         )
@@ -578,16 +612,33 @@ fun CardHand(
     Row(modifier = modifier) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Greeting("Player ${playerHand}, Cards: ${gameInstance.hands[playerHand].size}")
-            Row(horizontalArrangement = Arrangement.SpaceEvenly) {
-                gameInstance.hands[playerHand].forEach {
-                    GameCard(
-                        it.suit, it.card, openHand,
-                        onClick = if (showYourTurn) {
-                            { onYourTurn(it) }
-                        } else { {} }
-                    )
-                }
-            }
+            CardsInHand(
+                playerHand = playerHand,
+                gameInstance = gameInstance,
+                openHand = openHand,
+                onClick = if(showYourTurn) { it ->
+                    onYourTurn(it)
+                } else { {} }
+            )
+        }
+    }
+}
+
+@Composable
+fun CardsInHand(
+    playerHand: Int,
+    gameInstance: Game,
+    openHand: Boolean,
+    onClick: (Card) -> Unit,
+    fontSize: TextUnit = MaterialTheme.typography.titleMedium.fontSize,
+) {
+    Row(horizontalArrangement = Arrangement.SpaceEvenly) {
+        gameInstance.hands[playerHand].forEach {
+            GameCard(
+                it.suit, it.card, openHand,
+                onClick = { onClick(it) },
+                fontSize = fontSize,
+            )
         }
     }
 }
@@ -605,7 +656,8 @@ fun GameCard(
     suit: String,
     face: String = "",
     openHand: Boolean = true,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    fontSize: TextUnit = MaterialTheme.typography.titleMedium.fontSize,
 ) {
     val red = listOf("♥", "♦")
 
@@ -620,10 +672,10 @@ fun GameCard(
         .clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(1.7.dp, end = 3.2563.dp)) {
             if(openHand) {
-                Text(suit, color = suitColor, fontWeight = FontWeight.Black)
-                Text(face)
+                Text(suit, color = suitColor, fontWeight = FontWeight.Black, fontSize = fontSize)
+                Text(face, fontSize = fontSize)
             } else {
-                Text("EU", fontWeight = FontWeight.ExtraBold)
+                Text("EU", fontWeight = FontWeight.ExtraBold, fontSize = fontSize)
             }
         }
     }
