@@ -666,7 +666,6 @@ class Game {
             hands[hand.hand].tricks.removeAll{true}
         }
 
-
         Log.d("EUCHRE_SCORING", "Makers: ${makers.toString()}")
         Log.d("EUCHRE_SCORING", "Defend: ${defend.toString()}")
 
@@ -783,6 +782,7 @@ class Game {
                             maker = data.playerID % 2
                             println("${whoseTurn()} told the dealer to pick up Kitty card\nTrump Selected by Kitty: $trump")
                         }
+
                         hands[dealer % 4].pickItUp(kitty)
                     }
 

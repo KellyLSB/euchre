@@ -204,7 +204,6 @@ fun MainActivityContent(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
@@ -378,6 +377,8 @@ fun CardTable(
     showYourTurn: Boolean,
     onYourTurn: (Card) -> Unit,
 ) {
+    // Flag the JVM to recompose
+    // on the change of a variable
     if(_recompose) {}
     if(openHand) {}
 
