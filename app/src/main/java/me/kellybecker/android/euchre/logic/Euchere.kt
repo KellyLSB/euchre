@@ -65,10 +65,7 @@ val scoreOrder: List<String> = listOf(
     "AA", "AK", "AQ", "AJ", "A10", "A9",
 )
 
-/**
- * Weights for ordering the cards by scoring values
- */
-fun scoreOrderIndex(card: Card, reverse: Boolean = false): Int {
+fun scoreOrderIndex(card: Card, suit: String, reverse: Boolean = false): Int {
     val tmpScoreOrder: List<String> = if(reverse) {
         scoreOrder.asReversed()
     } else {
@@ -78,9 +75,9 @@ fun scoreOrderIndex(card: Card, reverse: Boolean = false): Int {
     var scoreCard: String = ""
     val score = if(trump != "" && card.card == "J" && isBowerSuit(card.suit)) {
         scoreCard = isBower(card.suit)
-        tmpScoreOrder.indexOf(isBower(card.suit))
+        tmpScoreOrder.indexOf(scoreCard)
     } else {
-        if(trump != "" && card.card != "T" && trump != card.suit) {
+        if(suit != "" && card.card != "T" && suit != card.suit) {
             scoreCard = "A${card.card}"
             tmpScoreOrder.indexOf("A${card.card}")
         } else {
@@ -91,6 +88,13 @@ fun scoreOrderIndex(card: Card, reverse: Boolean = false): Int {
 
     Log.d("EUCHRE", "$card ($scoreCard): $score")
     return score
+}
+
+/**
+ * Weights for ordering the cards by scoring values
+ */
+fun scoreOrderIndex(card: Card, reverse: Boolean = false): Int {
+    return scoreOrderIndex(card, trump, reverse)
 }
 
 @Serializable
@@ -307,7 +311,7 @@ class Game {
     var scoreB: Int = 0
 
     // OpenHand
-    var openHand: Boolean = true
+    var openHand: Boolean = false
 
     // Track the turn and dealer
     var turn: Int = 0
@@ -952,7 +956,7 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
 
     fun bestPlay(): Pair<Int, Card> {
         val list = Collections.synchronizedMap(this).toMap().map {
-            Pair(it.key, Pair(it.value, scoreOrderIndex(it.value)))
+            Pair(it.key, Pair(it.value, scoreOrderIndex(it.value, this.suit)))
         }.sortedBy {
             it.second.second
         }.map {

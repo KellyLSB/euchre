@@ -113,6 +113,7 @@ fun MainActivityContent(
     val flowYourTurn =  remember { MutableSharedFlow<Card>()  }
 
     LaunchedEffect(Unit) {
+        gameInstance.openHand = openHand
         gameInstance.webSocket.roomID = idRoom
         gameInstance.webSocket.playerID = idPlayer
 
