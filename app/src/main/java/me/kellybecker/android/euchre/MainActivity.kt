@@ -101,6 +101,8 @@ fun MainActivityContent(
     var openHand by remember { mutableStateOf(false) }
 
     // User Input Dialogs
+    var showShuffle by remember { mutableStateOf(false)  }
+    val flowShuffle  = remember { MutableSharedFlow<String>() }
     var showCutDeck by remember { mutableStateOf(false)   }
     val flowCutDeck  = remember { MutableSharedFlow<Boolean>() }
     var showPickItUp by remember { mutableStateOf(false)   }
@@ -163,7 +165,10 @@ fun MainActivityContent(
         gameInstance.deck.loadDeck(context, gameInstance.webSocket.roomID)
 
         while(true) {
-            gameInstance.phaseShuffle()
+            gameInstance.phaseShuffle {
+                showShuffle = true
+                flowShuffle.first()
+            }
             println("SHUFFLED")
             gameInstance.phaseCut {
                 showCutDeck = true
@@ -300,6 +305,10 @@ fun MainActivityContent(
                         player = idPlayer,
                         openHand = openHand,
                         gameInstance = gameInstance,
+                        showShuffle = showShuffle,
+                        onShuffle = { strategy ->
+                            scope.launch { flowShuffle.emit(strategy); showShuffle = false }
+                        },
                         showCutDeck = showCutDeck,
                         onCutDeck = { cut ->
                             scope.launch { flowCutDeck.emit(cut); showCutDeck = false }
@@ -367,6 +376,8 @@ fun CardTable(
     player: Int,
     openHand: Boolean,
     gameInstance: Game,
+    showShuffle: Boolean,
+    onShuffle: (String) -> Unit,
     showCutDeck: Boolean,
     onCutDeck: (Boolean) -> Unit,
     showPickItUp: Boolean,
@@ -382,6 +393,28 @@ fun CardTable(
     // on the change of a variable
     if(_recompose) {}
     if(openHand) {}
+
+    if(showShuffle) {
+        AlertDialog(
+            onDismissRequest = {},
+            confirmButton = {},
+            title = {
+                Column {
+                    Text("Shuffle Strategy")
+                    Row {
+                        Button(onClick = { onShuffle("&") }) { Text("&") }
+                        Button(onClick = { onShuffle("Δ") }) { Text("Δ") }
+                        Button(onClick = { onShuffle("☆") }) { Text("☆") }
+                    }
+                    Row {
+                        Button(onClick = { onShuffle("⛧") }) { Text("⛧") }
+                        Button(onClick = { onShuffle("♡") }) { Text("♡") }
+                        Button(onClick = { onShuffle("%") }) { Text("%") }
+                    }
+                }
+            }
+        )
+    }
 
     if(showCutDeck) {
         AlertDialog(

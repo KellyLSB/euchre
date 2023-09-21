@@ -329,10 +329,6 @@ class Game {
         false, false, false, false
     )
 
-    // Shuffle the cards
-    fun shuffle() { deck.shuffleCards() }
-    // Cut the deck
-    fun cut() { deck.cut() }
     // What is trump
     fun trump(): String { return trump }
 
@@ -401,13 +397,13 @@ class Game {
     }
 
     fun _phaseShuffle(obj: WSData, msg: String = "_phaseShuffle"): WSData {
-        this.shuffle()
+        deck.shuffleCards(obj.string)
         obj.stack = this.deck.toStack()
         Log.d("EUCHRE_SHUFFLE", "Local Shuffle; WSData: $obj")
         return obj
     }
 
-    suspend fun phaseShuffle() {
+    suspend fun phaseShuffle(checkUser: suspend () -> String) {
         val obj = WSData(
             playerID = dealer % 4,
             methodID = "phaseShuffle"
@@ -416,7 +412,10 @@ class Game {
         Log.d("EUCHRE_SHUFFLE", "PlayerType: ${hands[dealer % 4].playerType}")
 
         when(hands[dealer % 4].playerType) {
-            in 0..1 -> wsSend(_phaseShuffle(obj))
+            0 -> wsSend(_phaseShuffle(obj.copy(string = listOf(
+                "&", "Δ", "☆", "⛧", "♡", "%"
+            ).random())))
+            1 -> wsSend(_phaseShuffle(obj.copy(string = checkUser())))
             else -> {
                 val obj = webSocket.await(obj)
                 Log.d("EUCHRE_SHUFFLE", "Remote Shuffle; WSData: $obj")
@@ -429,7 +428,7 @@ class Game {
 
     fun _phaseCut(obj: WSData, msg: String = "_phaseCut"): WSData {
         if(obj.boolean) {
-            this.cut()
+            deck.cut()
             obj.stack = this.deck.toStack()
             Log.d("EUCHRE_CUT", "Local Cut; WSData: $obj")
         }
@@ -1091,14 +1090,16 @@ open class Stack() : MutableList<Card> by mutableListOf() {
     }
 
     // @TODO: Select shuffling technique?
-    fun shuffleCards() {
-        when((0..6).random()) {
-            0 -> shuffleA(2, (1..3).random()) // &
-            in 1..2 -> shuffleA(2, 2) // Δ
-            3 -> shuffleA(2, 3) // ☆
-            4 -> shuffleA(3, 1) // ⛧
-            5 -> shuffleB() // ♡
-            else -> shuffle() // %
+    fun shuffleCards(strategy: String = listOf(
+        "&", "Δ", "☆", "⛧", "♡", "%"
+    ).random()) {
+        when(strategy) {
+            "&" -> shuffleA(2, (1..3).random())
+            "Δ" -> shuffleA(2, 2)
+            "☆" -> shuffleA(2, 3)
+            "⛧" -> shuffleA(3, 1)
+            "♡" -> shuffleB()
+            "%" -> shuffle()
         }
     }
 
@@ -1358,8 +1359,8 @@ fun main() {
     val game = Game()
     for(i in (0..0)) {
         println("Game $i")
-        game.shuffle()
-        game.cut()
+        game.deck.shuffleCards()
+        game.deck.cut()
         game.deal()
         println(game)
         game.play()
