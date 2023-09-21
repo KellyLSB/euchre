@@ -61,8 +61,10 @@ fun isBower(suit: String): String {
 }
 
 val scoreOrder: List<String> = listOf(
-    "T", "J1", "J2", "A", "K", "Q", "J", "10", "9",
+    "T", "J1", "J2",
+    "A",  "K",  "Q",  "J",  "10",  "9",
     "AA", "AK", "AQ", "AJ", "A10", "A9",
+    "BA", "BK", "BQ", "BJ", "B10", "B9"
 )
 
 fun scoreOrderIndex(card: Card, suit: String, reverse: Boolean = false): Int {
@@ -72,19 +74,14 @@ fun scoreOrderIndex(card: Card, suit: String, reverse: Boolean = false): Int {
         scoreOrder.toList()
     }
 
-    var scoreCard: String = ""
-    val score = if(trump != "" && card.card == "J" && isBowerSuit(card.suit)) {
-        scoreCard = isBower(card.suit)
-        tmpScoreOrder.indexOf(scoreCard)
+    val scoreCard = if(trump != "" && card.card == "J" && isBowerSuit(card.suit)) {
+        isBower(card.suit)
     } else {
-        if(suit != "" && card.card != "T" && suit != card.suit) {
-            scoreCard = "A${card.card}"
-            tmpScoreOrder.indexOf("A${card.card}")
-        } else {
-            scoreCard = card.card
-            tmpScoreOrder.indexOf(card.card)
-        }
+        if(trump != "" && card.card != "T" && trump != card.suit) {
+            if(suit != "" && suit != card.suit) { "B" } else { "A" }
+        } else {""} + "${card.card}"
     }
+    val score = tmpScoreOrder.indexOf(scoreCard)
 
     Log.d("EUCHRE", "$card ($scoreCard): $score")
     return score
@@ -462,6 +459,8 @@ class Game {
     }
 
     fun _phaseDeal(obj: WSData, kitty: Boolean = false): WSData {
+        Log.d("PHASE_deal", "${this}")
+
         obj.stack = if(kitty) {
             this.kitty.toStack()
         } else {
@@ -655,6 +654,14 @@ class Game {
     }
 
     suspend fun phaseRecollect() {
+        // If trump was never selected recollect the kitty
+        // nextHand() recollects the unplayed hands.
+        if(trump == "") {
+            deck.addAll(kitty)
+            nextHand()
+            return
+        }
+
         val makers: MutableList<Trick> = mutableListOf()
         val defend: MutableList<Trick> = mutableListOf()
 
@@ -1184,6 +1191,7 @@ class Hand(val hand: Int) : Stack() {
     /**
      * Calculate the average scoring range of cards per suit.
      */
+    // {suit=(number, average)
     fun calculate(vararg suits: String): MutableMap<String, Pair<Int, Int>> {
         val suits = if(suits.isNotEmpty()) { suits } else { arrayOf("♠", "♥", "♣", "♦") }
         val avgScores: MutableMap<String, Pair<Int, Int>> = mutableMapOf()
@@ -1216,6 +1224,8 @@ class Hand(val hand: Int) : Stack() {
     }
 
     fun selectTrump(): String {
+        Log.d("EUCHRE_SELECTTRUMP", "${calculate()}")
+
         //@TODO query user input
         val avgScore = calculateIdealTrump()
 
@@ -1290,6 +1300,7 @@ class Deck(
     }
 
     fun saveDeck(context: Context, filename: String? = null) {
+        if(size != 25) throw Exception("Wrong size deck: ${size}")
         if(filename != null) name = filename
         val filename = getFilename(name)
         val json = toJSON()
@@ -1316,6 +1327,7 @@ class Deck(
             Log.d("EUCHRE_LOADDECK", "JSON: $json")
 
             fromJSON(json)
+            if(size != 25) throw Exception("Wrong file size: ${size}")
 
             Log.d("EUCHRE_LOADDECK", "Deck: $this")
         }
@@ -1332,6 +1344,10 @@ class Deck(
     override fun fromStack(vararg ni: Stack): Deck {
         super.fromStack(*ni)
         return this
+    }
+
+    override fun toString(): String {
+        return "(${size}) ${super.toString()}"
     }
 }
 
