@@ -74,10 +74,13 @@ fun scoreOrderIndex(card: Card, suit: String, reverse: Boolean = false): Int {
         scoreOrder.toList()
     }
 
+    // If the card is a bower apply the appropriate position.
     val scoreCard = if(trump != "" && card.card == "J" && isBowerSuit(card.suit)) {
         isBower(card.suit)
     } else {
+        // Since trump isn't the card suit bypass A/B in the event suit is trump
         if(trump != "" && card.card != "T" && trump != card.suit) {
+            // If suit isn't the card suit; file it tertiary.
             if(suit != "" && suit != card.suit) { "B" } else { "A" }
         } else {""} + "${card.card}"
     }
