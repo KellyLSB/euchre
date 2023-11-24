@@ -36,6 +36,55 @@ import java.net.URI
 import java.security.MessageDigest
 import java.util.Collections
 
+infix fun <T> MutableList<T>.prepend(e: T): MutableList<T> = this.prepend(listOf(e))
+infix fun <T> MutableList<T>.prepend(e: Collection<T>): MutableList<T> {
+    var tmp = buildList(this.size + e.size) {
+        addAll(e)
+        addAll(this@prepend)
+    }
+
+    return replace(tmp)
+}
+
+infix fun <T> MutableList<T>.replace(e: Collection<T>): MutableList<T> {
+    removeAll{true}
+    addAll(e)
+    return this
+}
+
+fun <T> MutableList<T>.shuffleA(s: Int = 2, t: Int = 1) {
+    repeat(t) {
+        val tmp: MutableList<MutableList<T>> = mutableListOf<MutableList<T>>()
+        repeat(s) { tmp.add(mutableListOf<T>()) }
+        forEachIndexed{ i, t -> tmp[i % s].add(t) }
+        replace(tmp.flatten())
+    }
+}
+
+fun <T> MutableList<T>.shuffleB(s: Int = (5..14).random()) {
+    var c: Int = s
+    while(c > 0) {
+        val rnd = (0..(size - 1)).random()
+        val cnt = (1..3).random()
+
+        val tmp = if(rnd + cnt > size) {
+            subList(rnd, size)
+        } else {
+            subList(rnd, rnd + cnt)
+        }
+
+        removeAll(tmp)
+        // /|||||\\//||\
+        if(s % 2 == 0) {
+            addAll(tmp)
+        } else {
+            prepend(tmp)
+        }
+
+        c--
+    }
+}
+
 var trump: String = ""
 var maker: Int = -1
 
@@ -223,7 +272,7 @@ class WebSocket {
             ))
         }
 
-        closingFunc.forEach { it(isConnected()) }
+        closingFunc.forEach{ it(isConnected()) }
     }
 
     suspend fun wsMessage(obj: WSData, relayed: Boolean = true) {
@@ -256,7 +305,7 @@ class WebSocket {
                     "boolean" -> it.boolean == m.value
                     else -> true
                 }
-            }.reduce { acc, b -> acc && b }
+            }.reduce{ acc, b -> acc && b }
         }.first()
 
         Log.d("WS_AWAIT", "Object: $obj")
@@ -1043,8 +1092,10 @@ open class Stack() : MutableList<Card> by mutableListOf() {
         val middle = size / 2
         val cutPnt = cutFunc(middle)
         Log.d("CUT", "Middle: ${middle}, Pnt: ${cutPnt}, List: ${toList()}")
+
         val newList = listOf(
-            subList(0, cutPnt), subList(cutPnt, size),
+            subList(0, cutPnt),
+            subList(cutPnt, size),
         ).reversed().flatten()
 
         removeAll{true}
@@ -1101,47 +1152,6 @@ open class Stack() : MutableList<Card> by mutableListOf() {
             "♡" -> shuffleB()
             "%" -> shuffle()
         }
-    }
-
-    fun shuffleA(s: Int = 2, t: Int = 1) {
-        repeat(t) {
-            val tmp: MutableList<MutableList<Card>> = mutableListOf<MutableList<Card>>()
-            repeat(s) { tmp.add(mutableListOf<Card>()) }
-            forEachIndexed { i, card -> tmp[i % s].add(card) }
-            removeAll { true }
-            addAll(tmp.flatten())
-        }
-    }
-
-    fun shuffleB() {
-        val tmp: MutableList<Card> = mutableListOf()
-        var cycles: Int = 0
-
-        while(size > 0) {
-            val rnd = (0..(size - 1)).random()
-            val cnt = (1..3).random()
-
-            val tmp2 = if(rnd + cnt > size) {
-                subList(rnd, size)
-            } else {
-                subList(rnd, rnd + cnt)
-            }
-
-            // /|||||\\//||\
-            if(cycles % 2 == 0) {
-                tmp.addAll(tmp2.toList())
-            } else {
-                val tmp3 = tmp2.toMutableList()
-                tmp3.addAll(tmp)
-                tmp.removeAll{true}
-                tmp.addAll(tmp3)
-            }
-
-            removeAll(tmp2.toList())
-            cycles++
-        }
-
-        addAll(tmp)
     }
 
     override fun toString(): String {
