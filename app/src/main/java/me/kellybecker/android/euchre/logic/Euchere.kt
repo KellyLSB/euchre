@@ -84,7 +84,7 @@ fun <T> MutableList<T>.shuffleB(
             prepend(tmp)
         }
 
-        if(!r) shuffleE(1, true)
+        if(!r) shuffleE(c % 2, true)
 
         c--
     }
@@ -110,7 +110,7 @@ fun <T> MutableList<T>.shuffleE(
             subList(rnd, size),
         ).flatten())
 
-        if(!r) shuffleB(1, true)
+        if(!r) shuffleB(c % 2, true)
 
         c--
     }
