@@ -36,19 +36,19 @@ import java.net.URI
 import java.security.MessageDigest
 import java.util.Collections
 
-fun <T> MutableList<T>.takeDrop(t: IntRange, d: Int = 3): List<T> {
+fun <T> MutableList<T>.takeDown(t: IntRange, d: Int = 3): List<T> {
     val l = t.toMutableList()
     Log.d("SELECT", "${l.toString()}")
     while(l.size > d) { l.remove(l.random()) }
     return select(*l.toIntArray())
 }
-fun <T> MutableList<T>.takeDown(t: IntRange, d: Int = 0): List<T> {
+fun <T> MutableList<T>.takeDrop(t: IntRange, d: Int = 0): List<T> {
     val l = t.toMutableList()
     repeat(d) { l.remove(l.random()) }
     return select(*l.toIntArray())
 }
 fun <T> MutableList<T>.takeDiscard(t: IntRange, vararg d: T): List<T> {
-    val l = takeDown(t).toMutableList()
+    val l = takeDrop(t).toMutableList()
     d.forEach{ l.remove(it) }
     return l
 }
@@ -91,9 +91,9 @@ fun <T> MutableList<T>.shuffleB(
         val cnt = (1..4).random()
 
         val tmp = if(rnd + cnt >= size) {
-            takeDrop(rnd..(size - 1), 3)
+            takeDown(rnd..(size - 1), 3)
         } else {
-            takeDrop(rnd..(rnd + cnt), 3)
+            takeDown(rnd..(rnd + cnt), 3)
         }
 
         removeAll(tmp)
@@ -121,7 +121,7 @@ fun <T> MutableList<T>.shuffleE(
 
         // /|||||\\//||\
         val i = if(c % 2 == 0) { size - cnt } else 0
-        val tmp = takeDrop(i..(i + cnt), 3)
+        val tmp = takeDown(i..(i + cnt), 3)
         removeAll(tmp)
 
         if(rnd >= size) rnd = size - 1
@@ -145,9 +145,9 @@ fun <T> MutableList<T>.shuffleV() {
         val cnt = (1..4).random()
 
         val tmp2 = if(rnd + cnt >= size) {
-            takeDrop(rnd..(size - 1), 3)
+            takeDown(rnd..(size - 1), 3)
         } else {
-            takeDrop(rnd..(rnd + cnt), 3)
+            takeDown(rnd..(rnd + cnt), 3)
         }
 
         removeAll(tmp2)
