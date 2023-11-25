@@ -2,6 +2,9 @@ package me.kellybecker.android.euchre.logic
 
 import android.content.Context
 import android.util.Log
+import android.util.Range
+import androidx.core.util.toClosedRange
+import androidx.core.util.toRange
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
@@ -36,6 +39,12 @@ import java.net.URI
 import java.security.MessageDigest
 import java.util.Collections
 
+fun <T> MutableList<T>.takeDiscard(t: IntRange, d: Int = 0): List<T> {
+    val l = t.toMutableList()
+    repeat(d) { l.remove(l.random()) }
+    return select(*l.toIntArray())
+}
+fun <T> MutableList<T>.select(vararg i: Int): List<T> = i.map{ get(it) }
 infix fun <T> MutableList<T>.prepend(e: T): MutableList<T> = this.prepend(listOf(e))
 infix fun <T> MutableList<T>.prepend(e: Collection<T>): MutableList<T> {
     var tmp = buildList(this.size + e.size) {
@@ -71,9 +80,9 @@ fun <T> MutableList<T>.shuffleB(
         val cnt = (1..3).random()
 
         val tmp = if(rnd + cnt > size) {
-            subList(rnd, size)
+            takeDiscard(rnd..size, 1)
         } else {
-            subList(rnd, rnd + cnt)
+            takeDiscard(rnd..(rnd + cnt), 1)
         }
 
         removeAll(tmp)
@@ -96,12 +105,12 @@ fun <T> MutableList<T>.shuffleE(
 ) {
     var c: Int = s
     while(c > 0) {
+        var rnd = (0..(size - 1)).random()
         val cnt = (1..3).random()
-        val rnd = (0..(size - 1)).random() - cnt
 
         // /|||||\\//||\
         val i = if(c % 2 == 0) { size - cnt } else 0
-        val tmp = subList(i, i + cnt)
+        val tmp = takeDiscard(i..(i + cnt), 1)
         removeAll(tmp)
 
         replace(listOf(
