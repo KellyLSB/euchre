@@ -404,11 +404,13 @@ fun CardTable(
                     Row {
                         Button(onClick = { onShuffle("&") }) { Text("&") }
                         Button(onClick = { onShuffle("Δ") }) { Text("Δ") }
+                        Button(onClick = { onShuffle("E") }) { Text("E") }
                         Button(onClick = { onShuffle("☆") }) { Text("☆") }
                     }
                     Row {
                         Button(onClick = { onShuffle("⛧") }) { Text("⛧") }
                         Button(onClick = { onShuffle("♡") }) { Text("♡") }
+                        Button(onClick = { onShuffle("V") }) { Text("V") }
                         Button(onClick = { onShuffle("%") }) { Text("%") }
                     }
                 }

@@ -541,7 +541,7 @@ class Game {
 
         when(hands[dealer % 4].playerType) {
             0 -> wsSend(_phaseShuffle(obj.copy(string = listOf(
-                "&", "Δ", "☆", "⛧", "♡", "%"
+                "&", "Δ", "E", "☆", "⛧", "♡", "V", "%"
             ).random())))
             1 -> wsSend(_phaseShuffle(obj.copy(string = checkUser())))
             else -> {
@@ -1221,14 +1221,16 @@ open class Stack() : MutableList<Card> by mutableListOf() {
 
     // @TODO: Select shuffling technique?
     fun shuffleCards(strategy: String = listOf(
-        "&", "Δ", "☆", "⛧", "♡", "%"
+        "&", "Δ", "E", "☆", "⛧", "♡", "V", "%"
     ).random()) {
         when(strategy) {
             "&" -> shuffleA(2, (1..3).random())
             "Δ" -> shuffleA(2, 2)
+            "E" -> shuffleE()
             "☆" -> shuffleA(2, 3)
             "⛧" -> shuffleA(3, 1)
             "♡" -> shuffleB()
+            "V" -> shuffleV()
             "%" -> shuffle()
         }
     }
