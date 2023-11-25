@@ -137,6 +137,33 @@ fun <T> MutableList<T>.shuffleE(
     }
 }
 
+fun <T> MutableList<T>.shuffleV() {
+    val tmp = mutableListOf<T>()
+    var cycles = 0
+    while(size > 0) {
+        val rnd = (0..(size - 1)).random()
+        val cnt = (1..4).random()
+
+        val tmp2 = if(rnd + cnt >= size) {
+            takeDrop(rnd..(size - 1), 3)
+        } else {
+            takeDrop(rnd..(rnd + cnt), 3)
+        }
+
+        removeAll(tmp2)
+        // /|||||\\//||\
+        if(cycles % 2 == 0) {
+            tmp.addAll(tmp2)
+        } else {
+            tmp.prepend(tmp2)
+        }
+
+        cycles++
+    }
+
+    addAll(tmp)
+}
+
 var trump: String = ""
 var maker: Int = -1
 
