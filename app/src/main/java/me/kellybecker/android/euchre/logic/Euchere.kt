@@ -61,7 +61,10 @@ fun <T> MutableList<T>.shuffleA(s: Int = 2, t: Int = 1) {
     }
 }
 
-fun <T> MutableList<T>.shuffleB(s: Int = (5..14).random()) {
+fun <T> MutableList<T>.shuffleB(
+    s: Int = (5..14).random(),
+    r: Boolean = false,
+) {
     var c: Int = s
     while(c > 0) {
         val rnd = (0..(size - 1)).random()
@@ -75,11 +78,39 @@ fun <T> MutableList<T>.shuffleB(s: Int = (5..14).random()) {
 
         removeAll(tmp)
         // /|||||\\//||\
-        if(s % 2 == 0) {
+        if(c % 2 == 0) {
             addAll(tmp)
         } else {
             prepend(tmp)
         }
+
+        if(!r) shuffleE(1, true)
+
+        c--
+    }
+}
+
+fun <T> MutableList<T>.shuffleE(
+    s: Int = (5..14).random(),
+    r: Boolean = false,
+) {
+    var c: Int = s
+    while(c > 0) {
+        val cnt = (1..3).random()
+        val rnd = (0..(size - 1)).random() - cnt
+
+        // /|||||\\//||\
+        val i = if(c % 2 == 0) { size - cnt } else 0
+        val tmp = subList(i, i + cnt)
+        removeAll(tmp)
+
+        replace(listOf(
+            subList(0, rnd),
+            tmp,
+            subList(rnd, size),
+        ).flatten())
+
+        if(!r) shuffleB(1, true)
 
         c--
     }
