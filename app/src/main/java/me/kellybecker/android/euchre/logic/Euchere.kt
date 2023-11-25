@@ -2,9 +2,6 @@ package me.kellybecker.android.euchre.logic
 
 import android.content.Context
 import android.util.Log
-import android.util.Range
-import androidx.core.util.toClosedRange
-import androidx.core.util.toRange
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
@@ -39,15 +36,29 @@ import java.net.URI
 import java.security.MessageDigest
 import java.util.Collections
 
-fun <T> MutableList<T>.takeDiscard(t: IntRange, d: Int = 0): List<T> {
+fun <T> MutableList<T>.takeDrop(t: IntRange, d: Int = 3): List<T> {
+    val l = t.toMutableList()
+    Log.d("SELECT", "${l.toString()}")
+    while(l.size > d) { l.remove(l.random()) }
+    return select(*l.toIntArray())
+}
+fun <T> MutableList<T>.takeDown(t: IntRange, d: Int = 0): List<T> {
     val l = t.toMutableList()
     repeat(d) { l.remove(l.random()) }
     return select(*l.toIntArray())
 }
-fun <T> MutableList<T>.select(vararg i: Int): List<T> = i.map{ get(it) }
+fun <T> MutableList<T>.takeDiscard(t: IntRange, vararg d: T): List<T> {
+    val l = takeDown(t).toMutableList()
+    d.forEach{ l.remove(it) }
+    return l
+}
+fun <T> MutableList<T>.select(vararg i: Int): List<T> = i.map{
+    Log.d("SELECT", "${it}: ${this.toString()}")
+    get(it)
+}
 infix fun <T> MutableList<T>.prepend(e: T): MutableList<T> = this.prepend(listOf(e))
 infix fun <T> MutableList<T>.prepend(e: Collection<T>): MutableList<T> {
-    var tmp = buildList(this.size + e.size) {
+    val tmp = buildList(this.size + e.size) {
         addAll(e)
         addAll(this@prepend)
     }
@@ -77,12 +88,12 @@ fun <T> MutableList<T>.shuffleB(
     var c: Int = s
     while(c > 0) {
         val rnd = (0..(size - 1)).random()
-        val cnt = (1..3).random()
+        val cnt = (1..4).random()
 
-        val tmp = if(rnd + cnt > size) {
-            takeDiscard(rnd..size, 1)
+        val tmp = if(rnd + cnt >= size) {
+            takeDrop(rnd..(size - 1), 3)
         } else {
-            takeDiscard(rnd..(rnd + cnt), 1)
+            takeDrop(rnd..(rnd + cnt), 3)
         }
 
         removeAll(tmp)
@@ -106,13 +117,14 @@ fun <T> MutableList<T>.shuffleE(
     var c: Int = s
     while(c > 0) {
         var rnd = (0..(size - 1)).random()
-        val cnt = (1..3).random()
+        val cnt = (1..4).random()
 
         // /|||||\\//||\
         val i = if(c % 2 == 0) { size - cnt } else 0
-        val tmp = takeDiscard(i..(i + cnt), 1)
+        val tmp = takeDrop(i..(i + cnt), 3)
         removeAll(tmp)
 
+        if(rnd >= size) rnd = size - 1
         replace(listOf(
             subList(0, rnd),
             tmp,
