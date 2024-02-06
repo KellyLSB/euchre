@@ -37,27 +37,61 @@ import java.security.MessageDigest
 import java.util.Collections
 import kotlin.random.Random
 
+/**
+ * takeDown
+ * t: range of object indices
+ * d: remove down to number of objects
+ * e: entropy in selecting the removed objects
+ */
 fun <T> MutableList<T>.takeDown(t: IntRange, d: Int = 3, e: Int = 25): List<T> {
     val l = t.toMutableList()
     Log.d("SELECT", "${l.toString()}")
     while(l.size > d) { l.remove(l.shuffled(Random(e)).random()) }
     return select(*l.toIntArray())
 }
+
+/**
+ * takeDrop
+ * t: range of object indices
+ * d: remove number of objects
+ * e: entropy for selecting removed objects
+ */
 fun <T> MutableList<T>.takeDrop(t: IntRange, d: Int = 0, e: Int = 25): List<T> {
     val l = t.toMutableList()
     repeat(d) { l.remove(l.shuffled(Random(e)).random()) }
     return select(*l.toIntArray())
 }
+
+/**
+ * takeDiscard
+ * t: range of object indices
+ * d: remove specific indice
+ */
 fun <T> MutableList<T>.takeDiscard(t: IntRange, vararg d: T): List<T> {
     val l = takeDrop(t).toMutableList()
     d.forEach{ l.remove(it) }
     return l
 }
+
+/**
+ * select
+ * i: selected indices
+ */
 fun <T> MutableList<T>.select(vararg i: Int): List<T> = i.map{
     Log.d("SELECT", "${it}: ${this.toString()}")
     get(it)
 }
+
+/**
+ * prepend
+ * e: prepend object to list
+ */
 infix fun <T> MutableList<T>.prepend(e: T): MutableList<T> = this.prepend(listOf(e))
+
+/**
+ * prepend
+ * e: prepend collection of objects
+ */
 infix fun <T> MutableList<T>.prepend(e: Collection<T>): MutableList<T> {
     val tmp = buildList(this.size + e.size) {
         addAll(e)
@@ -67,12 +101,21 @@ infix fun <T> MutableList<T>.prepend(e: Collection<T>): MutableList<T> {
     return replace(tmp)
 }
 
+/**
+ * replace
+ * e: replace all list objects with the provided collection
+ */
 infix fun <T> MutableList<T>.replace(e: Collection<T>): MutableList<T> {
     removeAll{true}
     addAll(e)
     return this
 }
 
+/**
+ * ShuffleA
+ * s: number of split decks during shuffle
+ * t: number of times to shuffle
+ */
 fun <T> MutableList<T>.shuffleA(s: Int = 2, t: Int = 1) {
     repeat(t) {
         val tmp: MutableList<MutableList<T>> = mutableListOf<MutableList<T>>()
@@ -82,6 +125,14 @@ fun <T> MutableList<T>.shuffleA(s: Int = 2, t: Int = 1) {
     }
 }
 
+/**
+ * shuffleB
+ * s: Times to shuffle
+ * t: Take number of cards during shuffle
+ * d: Reduce number of cards to remain a shuffled card
+ * r: Is this a recursive call (i.e. shuffleE)
+ * e: Entropy used in random to select points in the deck
+ */
 fun <T> MutableList<T>.shuffleB(
     s: Int = (5..14).random(),
     t: Int = 4, d: Int = 3,
@@ -117,6 +168,14 @@ fun <T> MutableList<T>.shuffleB(
     }
 }
 
+/**
+ * shuffleE
+ * s: Times to shuffle
+ * t: Take number of cards during shuffle
+ * d: Reduce number of cards to remain a shuffled card
+ * r: Is this a recursive call (i.e. shuffleB)
+ * e: Entropy used in random to select points in the deck
+ */
 fun <T> MutableList<T>.shuffleE(
     s: Int = (5..14).random(),
     t: Int = 4, d: Int = 3,
@@ -150,6 +209,12 @@ fun <T> MutableList<T>.shuffleE(
     }
 }
 
+/**
+ * shuffleV
+ * t: Maximum number of card to shuffle at once
+ * d: Reduce number of cards shuffled at once to increase entropy
+ * e: Entropy for selecting random points in the deck
+ */
 fun <T> MutableList<T>.shuffleV(
     t: Int = 4, d: Int = 3,
     e: Int = 25,
