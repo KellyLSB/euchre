@@ -1455,7 +1455,7 @@ class Hand(val hand: Int) : Stack() {
  */
 @Serializable
 class Deck(
-    var name: String = "horseshoe"
+    var name: String = "luckystar"
 ) : Stack() {
     init { reset() }
 
