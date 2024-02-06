@@ -43,7 +43,7 @@ import kotlin.random.Random
  * d: remove down to number of objects
  * e: entropy in selecting the removed objects
  */
-fun <T> MutableList<T>.takeDown(t: IntRange, d: Int = 3, e: Int = 25): List<T> {
+fun <T> MutableList<T>.takeDown(t: IntRange, d: Int = 3, e: Int = size): List<T> {
     val l = t.toMutableList()
     Log.d("SELECT", "${l.toString()}")
     while(l.size > d) { l.remove(l.shuffled(Random(e)).random()) }
@@ -56,7 +56,7 @@ fun <T> MutableList<T>.takeDown(t: IntRange, d: Int = 3, e: Int = 25): List<T> {
  * d: remove number of objects
  * e: entropy for selecting removed objects
  */
-fun <T> MutableList<T>.takeDrop(t: IntRange, d: Int = 0, e: Int = 25): List<T> {
+fun <T> MutableList<T>.takeDrop(t: IntRange, d: Int = 0, e: Int = size): List<T> {
     val l = t.toMutableList()
     repeat(d) { l.remove(l.shuffled(Random(e)).random()) }
     return select(*l.toIntArray())
@@ -137,7 +137,7 @@ fun <T> MutableList<T>.shuffleB(
     s: Int = (5..14).random(),
     t: Int = 4, d: Int = 3,
     r: Boolean = false,
-    e: Int = 25,
+    e: Int = size,
 ) {
     var c: Int = s
     while(c > 0) {
@@ -180,7 +180,7 @@ fun <T> MutableList<T>.shuffleE(
     s: Int = (5..14).random(),
     t: Int = 4, d: Int = 3,
     r: Boolean = false,
-    e: Int = 25,
+    e: Int = size,
 ) {
     var c: Int = s
     while(c > 0) {
@@ -217,7 +217,7 @@ fun <T> MutableList<T>.shuffleE(
  */
 fun <T> MutableList<T>.shuffleV(
     t: Int = 4, d: Int = 3,
-    e: Int = 25,
+    e: Int = size,
 ) {
     val tmp = mutableListOf<T>()
     var cycles = 0
