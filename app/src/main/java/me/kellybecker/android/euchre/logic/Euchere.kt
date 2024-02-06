@@ -113,6 +113,8 @@ infix fun <T> MutableList<T>.replace(e: Collection<T>): MutableList<T> {
 
 /**
  * ShuffleA
+ * Omni deal shuffler; Zipper shuffler
+ *
  * s: number of split decks during shuffle
  * t: number of times to shuffle
  */
@@ -127,6 +129,8 @@ fun <T> MutableList<T>.shuffleA(s: Int = 2, t: Int = 1) {
 
 /**
  * shuffleB
+ * Outward slight shuffler
+ *
  * s: Times to shuffle
  * t: Take number of cards during shuffle
  * d: Reduce number of cards to remain a shuffled card
@@ -170,6 +174,8 @@ fun <T> MutableList<T>.shuffleB(
 
 /**
  * shuffleE
+ * Inward slight shuffler
+ *
  * s: Times to shuffle
  * t: Take number of cards during shuffle
  * d: Reduce number of cards to remain a shuffled card
@@ -211,6 +217,8 @@ fun <T> MutableList<T>.shuffleE(
 
 /**
  * shuffleV
+ * Vortex Shuffler
+ * 
  * t: Maximum number of card to shuffle at once
  * d: Reduce number of cards shuffled at once to increase entropy
  * e: Entropy for selecting random points in the deck
