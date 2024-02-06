@@ -1518,11 +1518,12 @@ class Deck(
     }
 
     fun getFilename(filename: String): String {
-        val datetime = (System.currentTimeMillis()/1000).toString()
-        val datahash = MessageDigest.getInstance("SHA-1")
-            .digest(toString().toByteArray()).toString()
+        //val datetime = (System.currentTimeMillis()/1000).toString()
+        //val datahash = MessageDigest.getInstance("SHA-1")
+        //    .digest(toString().toByteArray()).toString()
 
-        return "${filename}_${datetime}_${datahash}.deck"
+        //return "${filename}_${datetime}_${datahash}.deck"
+        return "${filename}.deck"
     }
 
     override fun fromStack(vararg ni: Stack): Deck {
