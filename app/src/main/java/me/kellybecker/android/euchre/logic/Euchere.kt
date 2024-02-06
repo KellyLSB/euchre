@@ -35,16 +35,17 @@ import java.io.File
 import java.net.URI
 import java.security.MessageDigest
 import java.util.Collections
+import kotlin.random.Random
 
-fun <T> MutableList<T>.takeDown(t: IntRange, d: Int = 3): List<T> {
+fun <T> MutableList<T>.takeDown(t: IntRange, d: Int = 3, e: Int = 25): List<T> {
     val l = t.toMutableList()
     Log.d("SELECT", "${l.toString()}")
-    while(l.size > d) { l.remove(l.random()) }
+    while(l.size > d) { l.remove(l.shuffled(Random(e)).random()) }
     return select(*l.toIntArray())
 }
-fun <T> MutableList<T>.takeDrop(t: IntRange, d: Int = 0): List<T> {
+fun <T> MutableList<T>.takeDrop(t: IntRange, d: Int = 0, e: Int = 25): List<T> {
     val l = t.toMutableList()
-    repeat(d) { l.remove(l.random()) }
+    repeat(d) { l.remove(l.shuffled(Random(e)).random()) }
     return select(*l.toIntArray())
 }
 fun <T> MutableList<T>.takeDiscard(t: IntRange, vararg d: T): List<T> {
@@ -83,17 +84,19 @@ fun <T> MutableList<T>.shuffleA(s: Int = 2, t: Int = 1) {
 
 fun <T> MutableList<T>.shuffleB(
     s: Int = (5..14).random(),
+    t: Int = 4, d: Int = 3,
     r: Boolean = false,
+    e: Int = 25,
 ) {
     var c: Int = s
     while(c > 0) {
-        val rnd = (0..(size - 1)).random()
-        val cnt = (1..4).random()
+        val rnd = (0..(size - 1)).shuffled(Random(e)).random()
+        val cnt = (1..t).shuffled(Random(e)).random()
 
         val tmp = if(rnd + cnt >= size) {
-            takeDown(rnd..(size - 1), 3)
+            takeDown(rnd..(size - 1), d)
         } else {
-            takeDown(rnd..(rnd + cnt), 3)
+            takeDown(rnd..(rnd + cnt), d)
         }
 
         removeAll(tmp)
@@ -105,7 +108,8 @@ fun <T> MutableList<T>.shuffleB(
         }
 
         if(!r) {
-            shuffleE(c % 2, true)
+            shuffleE(c % 2, t, d, true, e)
+        } else {
             break
         }
 
@@ -115,16 +119,18 @@ fun <T> MutableList<T>.shuffleB(
 
 fun <T> MutableList<T>.shuffleE(
     s: Int = (5..14).random(),
+    t: Int = 4, d: Int = 3,
     r: Boolean = false,
+    e: Int = 25,
 ) {
     var c: Int = s
     while(c > 0) {
-        var rnd = (0..(size - 1)).random()
-        val cnt = (1..4).random()
+        var rnd = (0..(size - 1)).shuffled(Random(e)).random()
+        val cnt = (1..t).shuffled(Random(e)).random()
 
         // /|||||\\//||\
-        val i = if(c % 2 == 0) { size - cnt } else 0
-        val tmp = takeDown(i..(i + cnt), 3)
+        val i = if(c % 2 == 0) { size - cnt - 1 } else 0
+        val tmp = takeDown(i..(i + cnt), d)
         removeAll(tmp)
 
         if(rnd >= size) rnd = size - 1
@@ -135,7 +141,8 @@ fun <T> MutableList<T>.shuffleE(
         ).flatten())
 
         if(!r) {
-            shuffleB(c % 2, true)
+            shuffleB(c % 2, t, d, true, e)
+        } else {
             break
         }
 
@@ -143,17 +150,20 @@ fun <T> MutableList<T>.shuffleE(
     }
 }
 
-fun <T> MutableList<T>.shuffleV() {
+fun <T> MutableList<T>.shuffleV(
+    t: Int = 4, d: Int = 3,
+    e: Int = 25,
+) {
     val tmp = mutableListOf<T>()
     var cycles = 0
     while(size > 0) {
-        val rnd = (0..(size - 1)).random()
-        val cnt = (1..4).random()
+        val rnd = (0..(size - 1)).shuffled(Random(e)).random()
+        val cnt = (1..t).shuffled(Random(e)).random()
 
         val tmp2 = if(rnd + cnt >= size) {
-            takeDown(rnd..(size - 1), 3)
+            takeDown(rnd..(size - 1), d)
         } else {
-            takeDown(rnd..(rnd + cnt), 3)
+            takeDown(rnd..(rnd + cnt), d)
         }
 
         removeAll(tmp2)
