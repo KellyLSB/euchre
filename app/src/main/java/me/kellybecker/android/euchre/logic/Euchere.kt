@@ -1448,7 +1448,7 @@ class Hand(val hand: Int) : Stack() {
             }
         } else {
             // Perfect Game
-            return sortedBy{ scoreOrderIndex(it) }.first()
+            return minByOrNull { scoreOrderIndex(it) }!!
         }
     }
 
