@@ -138,7 +138,7 @@ fun <T> MutableList<T>.shuffleA(s: Int = 2, t: Int = 1) {
  * e: Entropy used in random to select points in the deck
  */
 fun <T> MutableList<T>.shuffleB(
-    s: Int = (5..14).random(),
+    s: Int = (5..14).shuffled(Random(rand)).random(),
     t: Int = 4, d: Int = 3,
     r: Boolean = false,
     e: Int = size,
@@ -183,7 +183,7 @@ fun <T> MutableList<T>.shuffleB(
  * e: Entropy used in random to select points in the deck
  */
 fun <T> MutableList<T>.shuffleE(
-    s: Int = (5..14).random(),
+    s: Int = (5..14).shuffled(Random(rand)).random(),
     t: Int = 4, d: Int = 3,
     r: Boolean = false,
     e: Int = size,
@@ -253,8 +253,16 @@ fun <T> MutableList<T>.shuffleV(
     addAll(tmp)
 }
 
+/**
+ * Variables best left semi-global
+ */
 var trump: String = ""
 var maker: Int = -1
+
+/**
+ * Constant for randomness of a euchre deck
+ */
+const val rand: Int = 25
 
 /**
  * Check if suit is a bower suit
@@ -620,7 +628,10 @@ class Game {
         return obj
     }
 
-    suspend fun phaseShuffle(checkUser: suspend () -> String) {
+    suspend fun phaseShuffle(
+        entropy: Int = rand,
+        checkUser: suspend () -> String,
+    ) {
         val obj = WSData(
             playerID = dealer % 4,
             methodID = "phaseShuffle"
@@ -631,7 +642,7 @@ class Game {
         when(hands[dealer % 4].playerType) {
             0 -> wsSend(_phaseShuffle(obj.copy(string = listOf(
                 "&", "Δ", "E", "☆", "⛧", "♡", "V", "%"
-            ).random())))
+            ).shuffled(Random(entropy)).random())))
             1 -> wsSend(_phaseShuffle(obj.copy(string = checkUser())))
             else -> {
                 val obj = webSocket.await(obj)
@@ -653,7 +664,10 @@ class Game {
         return obj
     }
 
-    suspend fun phaseCut(checkUser: suspend () -> Boolean) {
+    suspend fun phaseCut(
+        entropy: Int = rand,
+        checkUser: suspend () -> Boolean,
+    ) {
         val obj = WSData(
             playerID = (dealer + 1) % 4,
             methodID = "phaseCut",
@@ -663,7 +677,9 @@ class Game {
 
         when(hands[(dealer + 1) % 4].playerType) {
             // AI Turn
-            0 -> wsSend(_phaseCut(obj.copy(boolean = (0..1).random() > 0)))
+            0 -> wsSend(_phaseCut(obj.copy(
+                boolean = (0..1).shuffled(Random(entropy)).random() > 0,
+            )))
             // Local Turn
             1 -> wsSend(_phaseCut(obj.copy(boolean = checkUser())))
             // Remote Turn
@@ -1256,7 +1272,9 @@ open class Stack() : MutableList<Card> by mutableListOf() {
     /**
      * Cut the stack of cards by a random amount
      */
-    fun cut(cutFunc: (Int) -> Int = { ((it-3)..(it+2)).random() }) {
+    fun cut(cutFunc: (Int) -> Int = {
+        ((it-3)..(it+2)).shuffled(Random(rand)).random()
+    }) {
         val middle = size / 2
         val cutPnt = cutFunc(middle)
         Log.d("CUT", "Middle: ${middle}, Pnt: ${cutPnt}, List: ${toList()}")
@@ -1309,11 +1327,14 @@ open class Stack() : MutableList<Card> by mutableListOf() {
     }
 
     // @TODO: Select shuffling technique?
-    fun shuffleCards(strategy: String = listOf(
-        "&", "Δ", "E", "☆", "⛧", "♡", "V", "%"
-    ).random()) {
+    fun shuffleCards(
+        strategy: String = listOf(
+            "&", "Δ", "E", "☆", "⛧", "♡", "V", "%"
+        ).shuffled(Random(rand)).random(),
+        entropy: Int = rand,
+    ) {
         when(strategy) {
-            "&" -> shuffleA(2, (1..3).random())
+            "&" -> shuffleA(2, (1..3).shuffled(Random(entropy)).random())
             "Δ" -> shuffleA(2, 2)
             "E" -> shuffleE()
             "☆" -> shuffleA(2, 3)
@@ -1354,9 +1375,12 @@ class Hand(val hand: Int) : Stack() {
     var playerType: Int = 0
     val tricks: MutableList<Trick> = mutableListOf()
 
-    fun pickItUp(kitty: Stack) {
+    fun pickItUp(
+        kitty: Stack,
+        entropy: Int = rand,
+    ) {
         //@TODO query discard input
-        val disCard = (0..4).random()
+        val disCard = (0..4).shuffled(Random(entropy)).random()
         kitty.add(removeAt(disCard))
         add(kitty.removeFirst())
     }
