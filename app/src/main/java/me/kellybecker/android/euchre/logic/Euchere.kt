@@ -33,7 +33,6 @@ import kotlinx.serialization.json.JsonContentPolymorphicSerializer
 import kotlinx.serialization.json.JsonElement
 import java.io.File
 import java.net.URI
-import java.security.MessageDigest
 import java.util.Collections
 import kotlin.random.Random
 
@@ -45,7 +44,7 @@ import kotlin.random.Random
  */
 fun <T> MutableList<T>.takeDown(t: IntRange, d: Int = 3, e: Int = size): List<T> {
     val l = t.toMutableList()
-    Log.d("SELECT", "${l.toString()}")
+    Log.d("SELECT", "$l")
     while(l.size > d) { l.remove(l.shuffled(Random(e)).random()) }
     return select(*l.toIntArray())
 }
@@ -78,7 +77,7 @@ fun <T> MutableList<T>.takeDiscard(t: IntRange, vararg d: T): List<T> {
  * i: selected indices
  */
 fun <T> MutableList<T>.select(vararg i: Int): List<T> = i.map{
-    Log.d("SELECT", "${it}: ${this.toString()}")
+    Log.d("SELECT", "${it}: $this")
     get(it)
 }
 
@@ -307,7 +306,7 @@ fun scoreOrderIndex(card: Card, suit: String, reverse: Boolean = false): Int {
         if(trump != "" && card.card != "T" && trump != card.suit) {
             // If suit isn't the card suit; file it tertiary.
             if(suit != "" && suit != card.suit) { "B" } else { "A" }
-        } else {""} + "${card.card}"
+        } else {""} + card.card
     }
     val score = tmpScoreOrder.indexOf(scoreCard)
 
@@ -354,10 +353,10 @@ class WebSocket {
     val closingFunc  = mutableListOf<suspend (Boolean) -> Unit>()
 
     fun setURI(uri: URI = URI("")) {
-        if(uri.toString() == "") {
-            wsURI = URI("ws://10.0.2.2:8080/ws")
+        wsURI = if(uri.toString() == "") {
+            URI("ws://10.0.2.2:8080/ws")
         } else {
-            wsURI = uri
+            uri
         }
 
         println("Host: ${wsURI.host}")
@@ -422,7 +421,7 @@ class WebSocket {
                 Log.d("WS_RECEIVE", "Object:\n\t$obj")
                 block(txt, obj.copy(relayed = true))
             } catch(e: Throwable) {
-                Log.e("WS_RECEIVE", "${e.toString()}")
+                Log.e("WS_RECEIVE", "$e")
             }
         }
     }
@@ -694,7 +693,7 @@ class Game {
     }
 
     fun _phaseDeal(obj: WSData, kitty: Boolean = false): WSData {
-        Log.d("PHASE_deal", "${this}")
+        Log.d("PHASE_deal", "$this")
 
         obj.stack = if(kitty) {
             this.kitty.toStack()
@@ -818,10 +817,10 @@ class Game {
 
             Log.d("EUCHRE_GOALONE", "PlayerType: ${hands[whoseTurn()].playerType}")
 
-            when(hands[whoseTurn()].playerType) {
-                0 -> obj = wsSend(obj.copy(boolean = hands[whoseTurn()].shouldGoAlone()))
-                1 -> obj = wsSend(obj.copy(boolean = checkUser()))
-                else -> obj = webSocket.await(obj, mapOf("waiting" to true))
+            obj = when(hands[whoseTurn()].playerType) {
+                0 -> wsSend(obj.copy(boolean = hands[whoseTurn()].shouldGoAlone()))
+                1 -> wsSend(obj.copy(boolean = checkUser()))
+                else -> webSocket.await(obj, mapOf("waiting" to true))
             }
 
             Log.d("EUCHRE_GOALONE", "Going Alone: $goingAlone")
@@ -857,10 +856,10 @@ class Game {
                 Log.d("EUCHRE_PLAY", "Player: ${whoseTurn()}")
                 Log.d("EUCHRE_PLAY", "PlayerType: ${hands[whoseTurn()].playerType}")
 
-                when(hands[whoseTurn()].playerType) {
-                    0 -> obj = wsSend(obj.copy(card = hands[whoseTurn()].play(trickCards)))
-                    1 -> obj = wsSend(obj.copy(card = checkUser()))
-                    else -> obj = webSocket.await(obj, mapOf("waiting" to true))
+                obj = when(hands[whoseTurn()].playerType) {
+                    0 -> wsSend(obj.copy(card = hands[whoseTurn()].play(trickCards)))
+                    1 -> wsSend(obj.copy(card = checkUser()))
+                    else -> webSocket.await(obj, mapOf("waiting" to true))
                 }
 
                 Log.d("EUCHRE_PLAY", "Object: $obj")
@@ -871,7 +870,7 @@ class Game {
 
             // Discard played cards for reshuffle
             Log.d("EUCHRE_DISCARD", "trickCard: ${trickCards.map{ it.value }}")
-            Log.d("EUCHRE_DISCARD", "deck(${deck.size}): ${deck}")
+            Log.d("EUCHRE_DISCARD", "deck(${deck.size}): $deck")
             deck.addAll(trickCards.map{ it.value })
 
             // Remember who won which tricks
@@ -882,8 +881,8 @@ class Game {
         }
 
 
-        Log.d("EUCHRE_DISCARD", "kitty: ${kitty}")
-        Log.d("EUCHRE_DISCARD", "deck(${deck.size}): ${deck}")
+        Log.d("EUCHRE_DISCARD", "kitty: $kitty")
+        Log.d("EUCHRE_DISCARD", "deck(${deck.size}): $deck")
         deck.addAll(kitty)
         trick = 0
     }
@@ -912,11 +911,11 @@ class Game {
             hands[hand.hand].tricks.removeAll{true}
         }
 
-        Log.d("EUCHRE_SCORING", "Makers: ${makers.toString()}")
-        Log.d("EUCHRE_SCORING", "Defend: ${defend.toString()}")
+        Log.d("EUCHRE_SCORING", "Makers: $makers")
+        Log.d("EUCHRE_SCORING", "Defend: $defend")
 
-        Log.d("EUCHRE_SCORING", "GoingAlone: ${goingAlone}")
-        Log.d("EUCHRE_SCORING", "Maker: ${maker}")
+        Log.d("EUCHRE_SCORING", "GoingAlone: $goingAlone")
+        Log.d("EUCHRE_SCORING", "Maker: $maker")
 
         when(makers.size) {
             in 3..4 -> if(maker == 0) { scoreA++ } else { scoreB++ }
@@ -935,8 +934,8 @@ class Game {
             }
         }
 
-        Log.d("EUCHRE_SCORING", "ScoreA(0:2): ${scoreA}")
-        Log.d("EUCHRE_SCORING", "ScoreB(1:3): ${scoreB}")
+        Log.d("EUCHRE_SCORING", "ScoreA(0:2): $scoreA")
+        Log.d("EUCHRE_SCORING", "ScoreB(1:3): $scoreB")
 
         nextHand()
     }
@@ -952,7 +951,7 @@ class Game {
         trump = ""
         goingAlone = -1
 
-        Log.d("EUCHRE_NEXT", "Deck(${deck.size}): ${deck}")
+        Log.d("EUCHRE_NEXT", "Deck(${deck.size}): $deck")
 
         deck.fromList(
             // Prepend the remaining cards
@@ -960,7 +959,7 @@ class Game {
             deck.toList(),
         )
 
-        Log.d("EUCHRE_NEXT", "Deck(${deck.size}): ${deck}")
+        Log.d("EUCHRE_NEXT", "Deck(${deck.size}): $deck")
 
         hands.forEach{ it.reset() }
         kitty.reset()
@@ -975,7 +974,7 @@ class Game {
         when(data.methodID) {
             // Configure game to accept input from where...
             "aiOverride" -> hands[data.playerID].playerType = if(!relayed) {
-                Log.d("WS", "Local User (false is AI): ${data.boolean.toString()}")
+                Log.d("WS", "Local User (false is AI): ${data.boolean}")
                 if(data.boolean) { 1 } else { 0 }
             } else {
                 Log.d("WS", "Remote Player")
@@ -1020,7 +1019,7 @@ class Game {
             "phasePickItUp" -> {
                 if(!data.waiting) {
                     val dest = if(relayed) { "Remote" } else { "Local" }
-                    Log.d("EUCHRE_PICKITUP", "${dest} PickUp: ${data.boolean}")
+                    Log.d("EUCHRE_PICKITUP", "$dest PickUp: ${data.boolean}")
 
                     if(data.boolean) {
                         if(kitty[0].suit != "T") {
@@ -1042,7 +1041,7 @@ class Game {
             "phaseSelectTrump" -> {
                 if(!data.waiting) {
                     val dest = if(relayed) { "Remote" } else { "Local" }
-                    Log.d("EUCHRE_SELECTTRUMP", "${dest} Select Trump: ${data.string}")
+                    Log.d("EUCHRE_SELECTTRUMP", "$dest Select Trump: ${data.string}")
 
                     if(data.string != "") {
                         trump = data.string
@@ -1060,7 +1059,7 @@ class Game {
             "phaseGoAlone" -> {
                 if(!data.waiting) {
                     val dest = if(relayed) { "Remote" } else { "Local" }
-                    Log.d("EUCHRE_GOALONE", "${dest} Go Alone: $data")
+                    Log.d("EUCHRE_GOALONE", "$dest Go Alone: $data")
 
                     if(data.boolean) goingAlone = data.playerID
 
@@ -1074,7 +1073,7 @@ class Game {
             "phasePlay" -> {
                 if(!data.waiting) {
                     val dest = if(relayed) { "Remote" } else { "Local" }
-                    Log.d("EUCHRE_PLAY", "${dest} Play: $data")
+                    Log.d("EUCHRE_PLAY", "$dest Play: $data")
                     hands[data.playerID].playCard(trickCards, data.card)
 
                     webSocket.launch {
@@ -1089,8 +1088,8 @@ class Game {
     suspend fun wsSend(data: WSData, relay: Boolean = true): WSData {
         val data = webSocket.wrapPlayer(data)
         webSocket.wsMessage(data, relayed = false)
-        if(relay) return webSocket.send(data)
-        else return data
+        return if(relay) webSocket.send(data)
+        else data
     }
 
     fun readyCheck(playerID: Int, boolean: Boolean): Boolean {
@@ -1105,7 +1104,7 @@ class Game {
             }
         }
 
-        Log.d("EUCHRE_readyCheck", "${readyChecks} = ${areWeReady}")
+        Log.d("EUCHRE_readyCheck", "$readyChecks = $areWeReady")
 
         return areWeReady
     }
@@ -1205,20 +1204,19 @@ class Trick : MutableMap<Int, Card> by mutableMapOf() {
             Pair(it.first, it.second.first)
         }
 
-        if(list.size < 1) {
+        return if(list.isEmpty()) {
             Log.e("BESTPLAY", "${this}\n${Throwable().stackTraceToString()}")
-            return Pair(-1, Card("", ""))
-        }
-        else return list.first()
+            Pair(-1, Card("", ""))
+        } else list.first()
     }
 
     fun play(hand: Int, card: Card): Card? {
         if(suit == "" && size < 1) {
             // If the card is a Bower infer the trick's suit as trump
-            if(card.card == "J" && isBowerSuit(card.suit)) {
-                suit = trump
+            suit = if(card.card == "J" && isBowerSuit(card.suit)) {
+                trump
             } else {
-                suit = card.suit
+                card.suit
             }
 
             // If the card is trump infer the trick's suit as trump
@@ -1456,19 +1454,19 @@ class Hand(val hand: Int) : Stack() {
         if(trick.size > 0) {
             val bestCard = trick.bestCard()
             val ourCards = suited(trick.suit).bestCards()
-            if(ourCards.size > 0) {
+            return if(ourCards.size > 0) {
                 // bestCard > ourCards[0]
                 if(trick.compareCards(bestCard, ourCards[0]) > 0) {
                     println("Their card is better")
-                    return ourCards.last()
+                    ourCards.last()
                 } else {
                     println("Our cards are better")
-                    return ourCards.first()
+                    ourCards.first()
                 }
             } else {
                 println("Can't follow suit")
                 val ourCards = throwCards()
-                return ourCards.first()
+                ourCards.first()
             }
         } else {
             // Perfect Game
@@ -1508,7 +1506,7 @@ class Deck(
     }
 
     fun saveDeck(context: Context, filename: String? = null) {
-        if(size != 25) throw Exception("Wrong size deck: ${size}")
+        if(size != 25) throw Exception("Wrong size deck: $size")
         if(filename != null) name = filename
         val filename = getFilename(name)
         val json = toJSON()
@@ -1522,20 +1520,20 @@ class Deck(
     fun loadDeck(context: Context, filename: String? = null) {
         if(filename != null) name = filename
 
-        val decks = context.cacheDir.list{ file, filename ->
+        val decks = context.cacheDir.list{ _, filename ->
             filename.startsWith(name)
         }.sorted()
 
         Log.d("EUCHRE_LOADDECK", "Decks: $decks")
 
-        if(decks.size > 0) {
+        if(decks.isNotEmpty()) {
             val file = File(context.cacheDir, decks.last())
             val json = file.readText()
 
             Log.d("EUCHRE_LOADDECK", "JSON: $json")
 
             fromJSON(json)
-            if(size != 25) throw Exception("Wrong file size: ${size}")
+            if(size != 25) throw Exception("Wrong file size: $size")
 
             Log.d("EUCHRE_LOADDECK", "Deck: $this")
         }
